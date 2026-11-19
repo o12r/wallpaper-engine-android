@@ -23,15 +23,15 @@
     <string name="tip_unusual_title">If the Steam app says “This sign in to Steam is unusual”</string>
     <string name="tip_unusual_body">• Where are you trying to sign in? → choose Steam Client\n• What are you trying to do? → choose Other\nDon’t pick “Vote on a workshop item”, “Collect a free skin” or similar. Those are common scam patterns and Steam will block the sign-in.</string>
 
-    <string name="guard_confirm_title">Steam Guard</string>
-    <string name="guard_confirm_body">Approve this sign-in in the Steam mobile app, or enter a Steam Guard code instead.</string>
-    <string name="guard_confirm_app">I’ll approve in the Steam app</string>
-    <string name="guard_confirm_code">Enter a code</string>
+    <string name="guard_title">Steam Guard</string>
+    <string name="guard_approve_body">Open the Steam mobile app and tap “Approve” on the sign-in request. You can switch to it now: the sign-in continues when you come back.</string>
+    <string name="guard_device_or_body">Or enter the 5-character code from the Steam Guard tab (shield icon) of the Steam app. If the app shows the sign-in request instead of a code, just approve it.</string>
     <string name="guard_email_title">Email code</string>
-    <string name="guard_device_title">Steam Guard code</string>
     <string name="guard_email_body">Enter the code sent to %1$s.</string>
     <string name="guard_email_fallback">your email</string>
-    <string name="guard_device_body">Enter the 5-character code shown in the Steam Guard mobile authenticator.</string>
+    <string name="guard_device_body">Enter the 5-character code from the Steam Guard tab (shield icon) of the Steam mobile app.</string>
+    <string name="guard_waiting">Waiting for Steam…</string>
+    <string name="err_auth_expired">The sign-in request expired. Please sign in again.</string>
     <string name="guard_wrong">That code was wrong. Try again.</string>
     <string name="guard_code_label">Code</string>
 

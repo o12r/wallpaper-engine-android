@@ -9,7 +9,6 @@ import android.util.Log
 import `in`.dragonbra.javasteam.enums.EResult
 import `in`.dragonbra.javasteam.steam.authentication.AuthSessionDetails
 import `in`.dragonbra.javasteam.steam.authentication.AuthenticationException
-import `in`.dragonbra.javasteam.steam.authentication.IAuthenticator
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.License
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.callback.LicenseListCallback
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
@@ -21,7 +20,14 @@ import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackManager
 import `in`.dragonbra.javasteam.steam.steamclient.callbacks.ConnectedCallback
 import `in`.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesAuthSteamclient.EAuthSessionGuardType
+import `in`.dragonbra.javasteam.steam.authentication.AuthPollResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -32,8 +38,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import java.util.concurrent.CancellationException
-import java.util.concurrent.CompletableFuture
 import kotlin.concurrent.thread
 
 /**
@@ -55,17 +59,22 @@ object SteamSession {
         data class LoggedIn(val accountName: String) : State
     }
 
-    sealed interface AuthPrompt {
-        /** Steam Guard code from the mobile authenticator ([email] == null) or from e‑mail. */
-        data class Code(
-            val email: String?,
-            val previousIncorrect: Boolean,
-            val reply: CompletableFuture<String>,
-        ) : AuthPrompt
+    /**
+     * Steam Guard step of a password sign-in. The login completes either when the user approves
+     * it in the Steam mobile app ([canApprove]) or after a correct code is submitted; the app
+     * keeps polling the whole time, so both paths work at once.
+     */
+    data class AuthPrompt(
+        /** Which code Steam accepts, or null when only app/e-mail approval is possible. */
+        val codeType: CodeType?,
+        /** E-mail domain hint for [CodeType.EMAIL]. */
+        val email: String?,
+        val canApprove: Boolean,
+        val previousIncorrect: Boolean = false,
+        val submitting: Boolean = false,
+    )
 
-        /** Ask whether the user wants to approve the login in the Steam mobile app. */
-        data class Confirm(val reply: CompletableFuture<Boolean>) : AuthPrompt
-    }
+    enum class CodeType { DEVICE, EMAIL }
 
     private val _state = MutableStateFlow<State>(State.Connecting)
     val state: StateFlow<State> = _state.asStateFlow()
@@ -93,9 +102,14 @@ object SteamSession {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile private var started = false
-    @Volatile private var connected = false
-    @Volatile private var pendingCredentials: Pair<String, String>? = null
+    private val connectedFlow = MutableStateFlow(false)
+    private val connected: Boolean get() = connectedFlow.value
     @Volatile private var currentAccount: String? = null
+
+    /** The running password sign-in; it survives disconnects and the app going to the background. */
+    @Volatile private var authJob: Job? = null
+    private val authInProgress: Boolean get() = authJob?.isActive == true
+    private val codes = Channel<String>(Channel.CONFLATED)
 
     private const val KEY_ACCOUNT = "account"
     private const val KEY_TOKEN = "refresh_token"
@@ -133,7 +147,7 @@ object SteamSession {
     val hasSavedToken: Boolean get() = prefs.getString(KEY_TOKEN, null) != null
 
     private fun connect() {
-        _state.value = State.Connecting
+        if (!authInProgress) _state.value = State.Connecting
         scope.launch {
             try {
                 client.connect()
@@ -153,13 +167,23 @@ object SteamSession {
 
     /** Called from the login screen. */
     fun login(username: String, password: String) {
+        if (authInProgress) return
         _state.value = State.Authenticating
-        if (connected) {
-            scope.launch { credentialAuth(username, password) }
-        } else {
-            pendingCredentials = username to password
-            connect()
-        }
+        while (codes.tryReceive().isSuccess) { /* drop stale codes */ }
+        authJob = scope.launch(start = CoroutineStart.LAZY) { credentialAuth(username, password) }.also { it.start() }
+    }
+
+    /** Submits a Steam Guard code typed into the prompt. */
+    fun submitCode(code: String) {
+        _prompt.value = _prompt.value?.copy(submitting = true, previousIncorrect = false)
+        codes.trySend(code)
+    }
+
+    fun cancelLogin() {
+        authJob?.cancel()
+        authJob = null
+        _prompt.value = null
+        _state.value = if (connected) State.NeedLogin() else State.Connecting
     }
 
     fun logout() {
@@ -175,10 +199,6 @@ object SteamSession {
         }
     }
 
-    fun answerPrompt() {
-        _prompt.value = null
-    }
-
     suspend fun awaitLoggedIn(timeoutMs: Long = 60_000): State.LoggedIn = withTimeout(timeoutMs) {
         state.first { it is State.LoggedIn } as State.LoggedIn
     }
@@ -186,16 +206,13 @@ object SteamSession {
     // region callbacks
 
     private fun onConnected() {
-        connected = true
+        connectedFlow.value = true
         Log.i(TAG, "connected")
-        val creds = pendingCredentials
         val token = prefs.getString(KEY_TOKEN, null)
         val account = prefs.getString(KEY_ACCOUNT, null)
         when {
-            creds != null -> {
-                pendingCredentials = null
-                scope.launch { credentialAuth(creds.first, creds.second) }
-            }
+            // The sign-in coroutine is waiting for this connection and carries on by itself.
+            authInProgress -> _state.value = State.Authenticating
 
             token != null && account != null -> {
                 _state.value = State.Authenticating
@@ -207,9 +224,9 @@ object SteamSession {
     }
 
     private fun onDisconnected(cb: DisconnectedCallback) {
-        connected = false
+        connectedFlow.value = false
         Log.i(TAG, "disconnected (userInitiated=${cb.isUserInitiated})")
-        if (_state.value is State.LoggedIn || _state.value is State.Authenticating) {
+        if (!authInProgress && (_state.value is State.LoggedIn || _state.value is State.Authenticating)) {
             _state.value = State.Connecting
         }
         scheduleReconnect(if (cb.isUserInitiated) 500 else 3000)
@@ -271,6 +288,34 @@ object SteamSession {
         steamUser.logOn(details)
     }
 
+    private suspend fun awaitConnected() {
+        connectedFlow.first { it }
+    }
+
+    /**
+     * Runs [block] against the CM, waiting out disconnects (e.g. while Android has frozen the app
+     * in the background) instead of failing. Steam's own errors are rethrown.
+     */
+    private suspend fun <T> resilient(block: suspend () -> T): T {
+        while (true) {
+            awaitConnected()
+            try {
+                return withTimeout(20_000) { block() }
+            } catch (e: TimeoutCancellationException) {
+                Log.w(TAG, "auth request timed out, retrying")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (e.authCause() != null) throw e
+                Log.w(TAG, "auth request failed, retrying", e)
+                delay(1000)
+            }
+        }
+    }
+
+    private fun Throwable.authCause(): AuthenticationException? =
+        generateSequence(this) { it.cause }.firstOrNull { it is AuthenticationException } as AuthenticationException?
+
     private suspend fun credentialAuth(username: String, password: String) {
         try {
             val details = AuthSessionDetails().apply {
@@ -279,10 +324,53 @@ object SteamSession {
                 persistentSession = true
                 deviceFriendlyName = "WE Workshop (${Build.MODEL})"
                 guardData = prefs.getString(KEY_GUARD, null)
-                authenticator = UiAuthenticator
             }
-            val session = client.authentication.beginAuthSessionViaCredentials(details).await()
-            val result = session.pollingWaitForResult().await()
+            val session = resilient { client.authentication.beginAuthSessionViaCredentials(details).await() }
+
+            val allowed = session.allowedConfirmations
+            val types = allowed.map { it.confirmationType }
+            val codeType = when {
+                EAuthSessionGuardType.k_EAuthSessionGuardType_DeviceCode in types -> CodeType.DEVICE
+                EAuthSessionGuardType.k_EAuthSessionGuardType_EmailCode in types -> CodeType.EMAIL
+                else -> null
+            }
+            val canApprove = EAuthSessionGuardType.k_EAuthSessionGuardType_DeviceConfirmation in types ||
+                EAuthSessionGuardType.k_EAuthSessionGuardType_EmailConfirmation in types
+            if (codeType != null || canApprove) {
+                val email = allowed.firstOrNull {
+                    it.confirmationType == EAuthSessionGuardType.k_EAuthSessionGuardType_EmailCode
+                }?.associatedMessage
+                _prompt.value = AuthPrompt(codeType, email, canApprove)
+            }
+
+            val result = coroutineScope {
+                val codeJob = codeType?.let { type ->
+                    val guardType = if (type == CodeType.DEVICE) EAuthSessionGuardType.k_EAuthSessionGuardType_DeviceCode
+                    else EAuthSessionGuardType.k_EAuthSessionGuardType_EmailCode
+                    launch {
+                        for (code in codes) {
+                            try {
+                                resilient { session.sendSteamGuardCode(code, guardType).await() }
+                                // Accepted; the poll below picks up the tokens.
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                val r = e.authCause()?.result ?: throw e
+                                if (r != EResult.InvalidLoginAuthCode && r != EResult.TwoFactorCodeMismatch) throw e
+                                _prompt.value = _prompt.value?.copy(previousIncorrect = true, submitting = false)
+                            }
+                        }
+                    }
+                }
+                val interval = (session.pollingInterval * 1000).toLong().coerceIn(1000, 5000)
+                var r: AuthPollResult? = null
+                while (r == null) {
+                    delay(interval)
+                    r = resilient { session.pollAuthSessionStatus().await() }
+                }
+                codeJob?.cancel()
+                r
+            }
 
             prefs.edit()
                 .putString(KEY_ACCOUNT, result.accountName)
@@ -291,42 +379,26 @@ object SteamSession {
                     result.newGuardData?.let { putString(KEY_GUARD, it) }
                 }
                 .apply()
-
-            logOnWithToken(result.accountName, result.refreshToken)
+            _prompt.value = null
+            authJob = null
+            // If the connection is down right now, onConnected() logs on with the saved token.
+            if (connected) logOnWithToken(result.accountName, result.refreshToken)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // cancelLogin() already updated the state
         } catch (t: Throwable) {
             Log.w(TAG, "credential auth failed", t)
-            val cause = generateSequence(t) { it.cause }.firstOrNull { it is AuthenticationException } ?: t
+            val cause = t.authCause()
             val msg = when {
-                cause is AuthenticationException && cause.result == EResult.InvalidPassword -> App.str(R.string.err_bad_password)
-                cause is AuthenticationException && cause.result == EResult.RateLimitExceeded -> App.str(R.string.err_rate_limited)
-                cause is AuthenticationException -> App.str(R.string.err_auth_failed, cause.result.toString())
-                t is CancellationException || t.cause is CancellationException -> App.str(R.string.err_login_cancelled)
+                cause?.result == EResult.InvalidPassword -> App.str(R.string.err_bad_password)
+                cause?.result == EResult.RateLimitExceeded -> App.str(R.string.err_rate_limited)
+                cause?.result == EResult.Expired || cause?.result == EResult.FileNotFound -> App.str(R.string.err_auth_expired)
+                cause != null -> App.str(R.string.err_auth_failed, cause.result.toString())
                 else -> App.str(R.string.err_login_failed, t.message ?: t.javaClass.simpleName)
             }
+            authJob = null
             _state.value = State.NeedLogin(msg)
         } finally {
             _prompt.value = null
-        }
-    }
-
-    /** Bridges JavaSteam's Steam Guard callbacks to Compose dialogs. */
-    private object UiAuthenticator : IAuthenticator {
-        override fun getDeviceCode(previousCodeWasIncorrect: Boolean): CompletableFuture<String> {
-            val f = CompletableFuture<String>()
-            _prompt.value = AuthPrompt.Code(null, previousCodeWasIncorrect, f)
-            return f
-        }
-
-        override fun getEmailCode(email: String?, previousCodeWasIncorrect: Boolean): CompletableFuture<String> {
-            val f = CompletableFuture<String>()
-            _prompt.value = AuthPrompt.Code(email ?: "", previousCodeWasIncorrect, f)
-            return f
-        }
-
-        override fun acceptDeviceConfirmation(): CompletableFuture<Boolean> {
-            val f = CompletableFuture<Boolean>()
-            _prompt.value = AuthPrompt.Confirm(f)
-            return f
         }
     }
 }

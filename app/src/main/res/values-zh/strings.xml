@@ -21,15 +21,15 @@
     <string name="tip_unusual_title">如果 Steam 手机 App 提示“This sign in to Steam is unusual”</string>
     <string name="tip_unusual_body">• Where are you trying to sign in? → 选 Steam Client\n• What are you trying to do? → 选 Other\n不要选 “Vote on a workshop item”“Collect a free skin” 等选项，那些是常见盗号骗局，选了会被拦截。</string>
 
-    <string name="guard_confirm_title">Steam 令牌确认</string>
-    <string name="guard_confirm_body">可以在 Steam 手机 App 中点击“批准”完成登录，或改为输入令牌验证码。</string>
-    <string name="guard_confirm_app">我去 Steam App 批准</string>
-    <string name="guard_confirm_code">输入验证码</string>
+    <string name="guard_title">Steam 令牌</string>
+    <string name="guard_approve_body">打开 Steam 手机 App，在登录请求上点“批准”。现在就可以切换过去，回来后登录会自动继续。</string>
+    <string name="guard_device_or_body">或者输入 Steam App 底部盾牌图标“Steam 令牌”页面里的 5 位验证码。如果打开后显示的是登录请求而不是验证码，直接批准即可。</string>
     <string name="guard_email_title">邮箱验证码</string>
-    <string name="guard_device_title">Steam 令牌验证码</string>
     <string name="guard_email_body">请输入发送到 %1$s 的验证码。</string>
     <string name="guard_email_fallback">你的邮箱</string>
-    <string name="guard_device_body">请输入 Steam 手机令牌上显示的 5 位验证码。</string>
+    <string name="guard_device_body">请输入 Steam 手机 App 底部盾牌图标“Steam 令牌”页面里的 5 位验证码。</string>
+    <string name="guard_waiting">等待 Steam 确认…</string>
+    <string name="err_auth_expired">登录请求已过期，请重新登录。</string>
     <string name="guard_wrong">验证码不正确，请重试。</string>
     <string name="guard_code_label">验证码</string>
 
