@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- phone outline -->
+    <path
+        android:fillColor="#66C0F4"
+        android:pathData="M40,30h28a4,4 0,0 1,4 4v40a4,4 0,0 1,-4 4h-28a4,4 0,0 1,-4 -4v-40a4,4 0,0 1,4 -4zM40,35v38h28v-38z" />
+    <!-- mountains (wallpaper) -->
+    <path
+        android:fillColor="#66C0F4"
+        android:pathData="M42,66l8,-11l6,7l4,-5l6,9z" />
+    <!-- sun -->
+    <path
+        android:fillColor="#C7D5E0"
+        android:pathData="M60,45m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0" />
+</vector>

@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WE 创意工坊</string>
+    <string name="video_wallpaper_name">WE 视频壁纸</string>
+    <string name="video_wallpaper_desc">播放从创意工坊下载的 Wallpaper Engine 视频壁纸</string>
+
+    <string name="back">返回</string>
+    <string name="retry">重试</string>
+    <string name="cancel">取消</string>
+    <string name="ok">确定</string>
+    <string name="delete">删除</string>
+    <string name="apply">应用</string>
+
+    <string name="login_subtitle">登录你的 Steam 账号（需已购买 Wallpaper Engine）以浏览和下载创意工坊壁纸。\n密码只用于向 Steam 认证，不会被保存。</string>
+    <string name="login_account">Steam 账户名</string>
+    <string name="login_password">密码</string>
+    <string name="login_show_password">显示密码</string>
+    <string name="login_button">登录</string>
+    <string name="login_busy">登录中…</string>
+    <string name="login_connecting">正在连接 Steam 服务器…</string>
+    <string name="tip_unusual_title">如果 Steam 手机 App 提示“This sign in to Steam is unusual”</string>
+    <string name="tip_unusual_body">• Where are you trying to sign in? → 选 Steam Client\n• What are you trying to do? → 选 Other\n不要选 “Vote on a workshop item”“Collect a free skin” 等选项，那些是常见盗号骗局，选了会被拦截。</string>
+
+    <string name="guard_confirm_title">Steam 令牌确认</string>
+    <string name="guard_confirm_body">可以在 Steam 手机 App 中点击“批准”完成登录，或改为输入令牌验证码。</string>
+    <string name="guard_confirm_app">我去 Steam App 批准</string>
+    <string name="guard_confirm_code">输入验证码</string>
+    <string name="guard_email_title">邮箱验证码</string>
+    <string name="guard_device_title">Steam 令牌验证码</string>
+    <string name="guard_email_body">请输入发送到 %1$s 的验证码。</string>
+    <string name="guard_email_fallback">你的邮箱</string>
+    <string name="guard_device_body">请输入 Steam 手机令牌上显示的 5 位验证码。</string>
+    <string name="guard_wrong">验证码不正确，请重试。</string>
+    <string name="guard_code_label">验证码</string>
+
+    <string name="err_token_expired">登录凭证已失效，请重新登录</string>
+    <string name="err_login_failed">登录失败：%1$s</string>
+    <string name="err_bad_password">用户名或密码错误</string>
+    <string name="err_rate_limited">尝试次数过多，请稍后再试</string>
+    <string name="err_auth_failed">认证失败：%1$s</string>
+    <string name="err_login_cancelled">已取消登录</string>
+
+    <string name="sort_trend_week">本周热门</string>
+    <string name="sort_trend_month">本月热门</string>
+    <string name="sort_top_rated">最受好评</string>
+    <string name="sort_most_subscribed">订阅最多</string>
+    <string name="sort_newest">最新发布</string>
+    <string name="sort_updated">最近更新</string>
+    <string name="type_scene">场景</string>
+    <string name="type_video">视频</string>
+    <string name="type_web">网页</string>
+    <string name="type_application">应用</string>
+    <string name="type_preset">预设</string>
+    <string name="age_everyone">全年龄</string>
+    <string name="age_questionable">轻度敏感</string>
+    <string name="age_mature">成人</string>
+    <string name="err_query">创意工坊查询失败：%1$s</string>
+    <string name="err_details">获取详情失败：%1$s</string>
+    <string name="err_not_found">找不到该壁纸</string>
+    <string name="err_unavailable">该壁纸不可用（%1$s）</string>
+
+    <string name="notif_channel">壁纸下载</string>
+    <string name="notif_title">正在下载壁纸</string>
+    <string name="notif_preparing">准备下载…</string>
+    <string name="notif_queue_more">%1$s（队列中还有 %2$d 个）</string>
+    <string name="notif_queued">排队中：%1$d 个</string>
+    <string name="dl_waiting_login">等待 Steam 登录…</string>
+    <string name="dl_manifest">获取清单…</string>
+    <string name="dl_downloading">下载中…</string>
+    <string name="dl_no_files">没有下载到任何文件。请确认当前 Steam 账号已购买 Wallpaper Engine，且该壁纸未被下架。</string>
+    <string name="dl_exporting">导出到 %1$s…</string>
+    <string name="dl_cannot_create">无法创建 %1$s</string>
+    <string name="dl_reconnecting">Steam 已重连，正在重试…</string>
+    <string name="dl_disconnected">下载过程中与 Steam 的连接断开了</string>
+    <string name="dl_stalled">下载长时间没有进度</string>
+    <string name="dl_interrupted">下载被中断</string>
+
+    <string name="browse_connecting">正在连接 Steam…</string>
+    <string name="search_hint">搜索壁纸</string>
+    <string name="clear">清除</string>
+    <string name="all_types">全部类型</string>
+    <string name="no_results">没有找到壁纸</string>
+    <string name="end_reached">已经到底了</string>
+    <string name="downloaded">已下载</string>
+    <string name="subs_count">%1$s 订阅</string>
+    <string name="filter_sort">排序</string>
+    <string name="filter_type">类型</string>
+    <string name="filter_tag">标签</string>
+    <string name="filter_any">不限</string>
+    <string name="filter_expand">展开筛选</string>
+    <string name="filter_collapse">收起筛选</string>
+    <string name="action_downloads">下载</string>
+    <string name="action_settings">设置</string>
+
+    <string name="detail_title">壁纸详情</string>
+    <string name="open_in_browser">在浏览器中打开</string>
+    <string name="tag_subscriptions">%1$s 订阅</string>
+    <string name="tag_favorites">%1$s 收藏</string>
+    <string name="tag_updated">更新于 %1$s</string>
+    <string name="download_to_phone">下载到手机（%1$s）</string>
+    <string name="queued">排队中…</string>
+    <string name="view_downloads">查看下载列表</string>
+    <string name="download_failed">下载失败：%1$s</string>
+    <string name="downloaded_files">✓ 已下载 %1$d 个文件</string>
+    <string name="saved_to">保存位置：%1$s</string>
+    <string name="set_live_wallpaper">设为动态壁纸</string>
+    <string name="set_static_wallpaper">设为静态壁纸</string>
+    <string name="scene_note">场景类壁纸（scene.pkg）需要 Wallpaper Engine 官方安卓版或其它兼容播放器打开，文件已保存在上面的目录中。</string>
+    <string name="web_note">网页 / 应用类壁纸依赖电脑端运行环境，手机上通常无法直接使用。</string>
+    <string name="redownload">重新下载</string>
+    <string name="preview">预览</string>
+    <string name="pick_in_list">请在列表中选择“WE 视频壁纸”</string>
+    <string name="live_unsupported">此设备不支持动态壁纸</string>
+    <string name="wallpaper_set">壁纸已设置</string>
+    <string name="wallpaper_set_failed">设置壁纸失败</string>
+
+    <string name="downloads_title">下载管理</string>
+    <string name="downloads_empty">还没有下载任何壁纸</string>
+    <string name="downloads_location">文件保存在 手机存储/Download/%1$s/&lt;壁纸ID&gt;/</string>
+    <string name="status_queued">排队中</string>
+    <string name="status_failed">失败：%1$s</string>
+    <string name="status_done">已完成</string>
+
+    <string name="wp_settings_title">WE 视频壁纸设置</string>
+    <string name="wp_active_reapply">已在使用 · 重新应用</string>
+    <string name="wp_apply">设为系统动态壁纸</string>
+    <string name="wp_muted">静音播放</string>
+    <string name="wp_choose_header">选择要播放的视频壁纸（只列出已下载的“视频”类壁纸）</string>
+    <string name="wp_none">还没有下载视频类壁纸。打开 WE 创意工坊，在类型里选“视频”，下载一个后再回来。</string>
+    <string name="wp_selected">已选择</string>
+    <string name="wp_no_picker">此系统没有动态壁纸选择器</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_appearance">外观</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_black">纯黑（AMOLED）</string>
+    <string name="settings_language">语言</string>
+    <string name="lang_system">跟随系统</string>
+    <string name="lang_unsupported">应用内切换语言需要 Android 13 或更高版本，当前跟随系统语言。</string>
+    <string name="settings_content">内容分级</string>
+    <string name="settings_content_desc">浏览时显示的内容分级</string>
+    <string name="settings_live_wallpaper">动态壁纸设置</string>
+    <string name="settings_account">账号</string>
+    <string name="logged_in_as">已登录：%1$s</string>
+    <string name="logout">退出登录</string>
+    <string name="logout_confirm_title">退出登录？</string>
+
+    <string name="preview_tap_hint">点击画面隐藏 / 显示按钮</string>
+    <string name="preview_not_downloaded">当前显示的是创意工坊预览图，下载后可预览真实视频效果。</string>
+    <string name="preview_download">下载</string>
+    <string name="sort_relevance">相关度</string>
+    <string name="filter_resolution">分辨率</string>
+    <string name="res_portrait">竖屏 %1$s</string>
+    <string name="res_dynamic">动态分辨率</string>
+    <string name="res_other">其他分辨率</string>
+    <string name="status_queued_pos">排队中 · 第 %1$d / %2$d 个</string>
+    <string name="queue_to_front">下一个下载</string>
+    <string name="queue_up">上移</string>
+    <string name="queue_down">下移</string>
+    <string name="cancel_download">取消下载</string>
+</resources>
