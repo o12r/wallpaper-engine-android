@@ -49,6 +49,7 @@ import com.weworkshop.app.R
 import com.weworkshop.app.ThemeMode
 import com.weworkshop.app.steam.SteamSession
 import com.weworkshop.app.steam.Workshop
+import com.weworkshop.app.update.UpdateChecker
 import com.weworkshop.app.wallpaper.WallpaperSettingsActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -140,6 +141,37 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Text(stringResource(R.string.settings_live_wallpaper), Modifier.weight(1f))
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
                 }
+            }
+
+            Section(stringResource(R.string.settings_updates)) {
+                val upd by UpdateChecker.state.collectAsStateWithLifecycle()
+                val auto by UpdateChecker.autoCheck.collectAsStateWithLifecycle()
+                Text(stringResource(R.string.update_current, UpdateChecker.currentVersion))
+                Row(
+                    Modifier.fillMaxWidth().clickable { UpdateChecker.setAutoCheck(!auto) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = auto, onCheckedChange = { UpdateChecker.setAutoCheck(it) })
+                    Text(stringResource(R.string.update_auto))
+                }
+                val status = when (val s = upd) {
+                    UpdateChecker.State.Checking -> stringResource(R.string.update_checking)
+                    UpdateChecker.State.UpToDate -> stringResource(R.string.update_latest)
+                    is UpdateChecker.State.Available -> stringResource(R.string.update_available_title, s.release.tag)
+                    is UpdateChecker.State.Downloading -> stringResource(R.string.update_downloading, s.percent)
+                    is UpdateChecker.State.Failed -> stringResource(R.string.update_failed, s.message)
+                    else -> null
+                }
+                status?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                OutlinedButton(
+                    enabled = upd !is UpdateChecker.State.Checking && upd !is UpdateChecker.State.Downloading,
+                    onClick = {
+                        if (upd is UpdateChecker.State.Available) UpdateChecker.showDialog() else UpdateChecker.check(manual = true)
+                    },
+                    modifier = Modifier.padding(top = 8.dp),
+                ) { Text(stringResource(R.string.update_check)) }
             }
 
             Section(stringResource(R.string.settings_account)) {

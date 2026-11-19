@@ -2,4 +2,5 @@
 <paths>
     <external-files-path name="workshop" path="." />
     <files-path name="internal" path="." />
+    <cache-path name="updates" path="updates/" />
 </paths>

@@ -45,6 +45,8 @@ private fun Root() {
     val prompt by SteamSession.prompt.collectAsStateWithLifecycle()
 
     prompt?.let { AuthPromptDialog(it) }
+    UpdateDialog()
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.weworkshop.app.update.UpdateChecker.autoCheck() }
 
     val showLogin = when (state) {
         is SteamSession.State.NeedLogin -> true
@@ -63,8 +65,12 @@ private fun Root() {
                 connection = state,
                 onOpen = { nav.navigate("detail/$it") },
                 onDownloads = { nav.navigate("downloads") },
+                onSubscriptions = { nav.navigate("subscriptions") },
                 onSettings = { nav.navigate("settings") },
             )
+        }
+        composable("subscriptions") {
+            SubscriptionsScreen(onBack = { nav.popBackStack() }, onOpen = { nav.navigate("detail/$it") })
         }
         composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable(

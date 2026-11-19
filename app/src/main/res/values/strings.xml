@@ -170,4 +170,28 @@
     <string name="queue_up">Move up</string>
     <string name="queue_down">Move down</string>
     <string name="cancel_download">Cancel download</string>
+    <!-- Subscriptions -->
+    <string name="action_subscriptions">Subscriptions</string>
+    <string name="subscriptions_title">My subscriptions</string>
+    <string name="subscriptions_hint">Wallpapers this Steam account subscribes to. Nothing is downloaded automatically; open one to download it.</string>
+    <string name="subscriptions_empty">This account isn’t subscribed to any Wallpaper Engine items</string>
+    <string name="subscriptions_count">%1$d subscribed</string>
+
+    <!-- Updates -->
+    <string name="settings_updates">Updates</string>
+    <string name="update_current">Current version: %1$s</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_auto">Check automatically on launch</string>
+    <string name="update_checking">Checking GitHub…</string>
+    <string name="update_latest">You’re on the latest version</string>
+    <string name="update_available_title">Update available: %1$s</string>
+    <string name="update_available_body">Version %1$s is available (you have %2$s, download %3$s).</string>
+    <string name="update_install">Download and install</string>
+    <string name="update_later">Later</string>
+    <string name="update_skip">Skip this version</string>
+    <string name="update_downloading">Downloading update… %1$d%%</string>
+    <string name="update_failed">Update failed: %1$s</string>
+    <string name="update_no_apk">The latest release has no APK attached</string>
+    <string name="update_allow_install">Allow WE Workshop to install apps, then tap install again.</string>
+    <string name="update_open_release">Open release page</string>
 </resources>

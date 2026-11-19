@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -190,6 +191,7 @@ fun BrowseScreen(
     connection: SteamSession.State,
     onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
+    onSubscriptions: () -> Unit,
     onSettings: () -> Unit,
     vm: BrowseViewModel = viewModel(),
 ) {
@@ -210,6 +212,9 @@ fun BrowseScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = onSubscriptions) {
+                        Icon(Icons.Filled.Subscriptions, stringResource(R.string.action_subscriptions))
+                    }
                     IconButton(onClick = onDownloads) {
                         BadgedBox(badge = { if (activeCount > 0) Badge { Text("$activeCount") } }) {
                             Icon(Icons.Filled.Download, stringResource(R.string.action_downloads))
@@ -423,7 +428,7 @@ private fun WallpaperGrid(vm: BrowseViewModel, downloaded: Set<Long>, onOpen: (L
 }
 
 @Composable
-private fun WallpaperCard(item: WorkshopItem, downloaded: Boolean, onClick: () -> Unit) {
+internal fun WallpaperCard(item: WorkshopItem, downloaded: Boolean, onClick: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Box {
             AsyncImage(

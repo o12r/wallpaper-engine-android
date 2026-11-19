@@ -10,12 +10,14 @@ Browse, search and download **Wallpaper Engine** Steam Workshop wallpapers direc
 
 - Sign in with your Steam account (password + Steam Guard: mobile app approval, authenticator code or e‑mail code). Only Steam's refresh token is stored, never your password.
 - Browse the Workshop: sort (trending, top rated, most subscribed, newest, recently updated), full‑text search (sortable too), and filters for type, tag, **resolution** (portrait phone resolutions first) and content rating.
+- **My subscriptions**: lists the wallpapers your Steam account subscribes to (nothing is downloaded automatically).
 - Wallpaper details with preview images; tap any tag to browse it.
 - Download queue in the background with progress notification; reorder, move to front, or cancel.
 - Files are exported to `Download/WallpaperEngine/<workshop id>/`.
 - **Video wallpapers** can be set as a live wallpaper with the built‑in player (“WE Video Wallpaper” also appears in the system live‑wallpaper picker, with its own settings).
 - Full‑screen preview with a mock lock‑screen clock.
 - English and Simplified Chinese, light / dark / true black (AMOLED) themes.
+- In‑app updates from GitHub Releases (checked on launch at most every 12 h, or manually in Settings).
 
 ### Limitations
 
@@ -74,12 +76,14 @@ Release builds are signed with the key described in a git‑ignored `keystore.pr
 
 - 登录 Steam 账号（密码 + Steam 令牌：手机 App 批准、令牌验证码或邮箱验证码）。只保存 Steam 的 refresh token，不保存密码。
 - 浏览创意工坊：排序（热门、好评、订阅最多、最新、最近更新）、搜索（搜索结果也能排序），按类型、标签、**分辨率**（竖屏手机分辨率排在前面）和内容分级筛选。
+- **我的订阅**：列出 Steam 账号订阅的壁纸（不会自动下载）。
 - 壁纸详情和预览图；点击任意标签即可浏览该标签。
 - 后台下载队列，通知栏显示进度；可调整顺序、设为下一个下载、取消下载。
 - 文件导出到 `Download/WallpaperEngine/<壁纸ID>/`。
 - **视频**类壁纸可以用内置播放器设为动态壁纸（系统动态壁纸列表里也有“WE 视频壁纸”，带独立设置页）。
 - 全屏预览，叠加模拟锁屏时钟。
 - 中文 / 英文界面，浅色 / 深色 / 纯黑（AMOLED）主题。
+- 从 GitHub Releases 检查并安装更新（启动时最多每 12 小时检查一次，也可在设置里手动检查）。
 
 ### 限制
 

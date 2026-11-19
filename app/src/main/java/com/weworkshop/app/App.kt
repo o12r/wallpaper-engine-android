@@ -26,6 +26,7 @@ class App : Application(), SingletonImageLoader.Factory {
         AppSettings.init(this)
         SteamSession.init(this)
         DownloadManager.init(this)
+        com.weworkshop.app.update.UpdateChecker.init()
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =

@@ -4,6 +4,7 @@ import com.weworkshop.app.App
 import com.weworkshop.app.R
 import `in`.dragonbra.javasteam.enums.EResult
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetUserFiles_Request
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_QueryFiles_Request
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.PublishedFileDetails
 import `in`.dragonbra.javasteam.rpc.service.PublishedFile
@@ -146,6 +147,40 @@ object Workshop {
             nextCursor = next,
             total = body.total,
         )
+    }
+
+    /**
+     * Items the signed-in account is subscribed to (page is 1-based). Only lists them; nothing
+     * is downloaded. Sorted by subscription date when Steam accepts that sort, else its default.
+     */
+    suspend fun subscribed(page: Int, perPage: Int = 30): WorkshopPage {
+        SteamSession.awaitLoggedIn()
+        val steamId = SteamSession.client.steamID?.convertToUInt64()
+            ?: throw IOException(App.str(R.string.err_query, "no SteamID"))
+        fun build(sort: String?) = CPublishedFile_GetUserFiles_Request.newBuilder().apply {
+            steamid = steamId
+            appid = SteamSession.WE_APP_ID
+            // The CM accepts "myfiles", "mysubscriptions" and "myfavorites"; "subscribed" (the
+            // Web API's name) is rejected with InvalidParam.
+            type = "mysubscriptions"
+            sort?.let { sortmethod = it }
+            this.page = page
+            numperpage = perPage
+            returnTags = true
+            returnVoteData = true
+            returnShortDescription = true
+            stripDescriptionBbcode = true
+        }.build()
+
+        var resp = rpc { service.getUserFiles(build("subscriptiondate")).await() }
+        if (resp.result != EResult.OK) resp = rpc { service.getUserFiles(build(null)).await() }
+        if (resp.result != EResult.OK) throw IOException(App.str(R.string.err_query, resp.result.toString()))
+        val body = resp.body
+        val details = body.publishedfiledetailsList
+        val items = details.filter { it.result == 1 }.map { it.toItem() }
+        items.forEach { cache.putIfAbsent(it.id, it) }
+        val more = details.size >= perPage && page * perPage < body.total
+        return WorkshopPage(items = items, nextCursor = if (more) (page + 1).toString() else null, total = body.total)
     }
 
     suspend fun details(id: Long): WorkshopItem {
