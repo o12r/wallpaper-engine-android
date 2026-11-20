@@ -1,6 +1,13 @@
 package com.weworkshop.app.wallpaper
 
+import android.app.WallpaperColors
 import android.app.WallpaperManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.media.MediaMetadataRetriever
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -30,6 +37,29 @@ class VideoWallpaperService : WallpaperService() {
         private var player: ExoPlayer? = null
         private var loadedPath: String? = null
         private val prefs = WallpaperPrefs.prefs(this@VideoWallpaperService)
+        private val main = Handler(Looper.getMainLooper())
+
+        /** Colors of the current video, so the system picks dark status-bar text on light videos. */
+        @Volatile private var colors: WallpaperColors? = null
+        @Volatile private var colorsFor: String? = null
+
+        override fun onComputeColors(): WallpaperColors? = colors
+
+        private fun updateColors(f: File) {
+            val key = f.absolutePath
+            if (key == colorsFor) return
+            colorsFor = key
+            val dm = resources.displayMetrics
+            val aspect = dm.widthPixels.toFloat() / dm.heightPixels.coerceAtLeast(1)
+            Thread({
+                val c = videoColors(f, aspect)
+                main.post {
+                    if (colorsFor != key) return@post
+                    colors = c
+                    try { notifyColorsChanged() } catch (t: Throwable) { Log.w(TAG, "notifyColorsChanged failed", t) }
+                }
+            }, "wallpaper-colors").start()
+        }
 
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             super.onSurfaceCreated(holder)
@@ -54,6 +84,7 @@ class VideoWallpaperService : WallpaperService() {
             val f = WallpaperPrefs.resolveVideo(this@VideoWallpaperService) ?: return
             if (f.absolutePath == loadedPath) return
             loadedPath = f.absolutePath
+            updateColors(f)
             p.setMediaItem(MediaItem.fromUri(Uri.fromFile(f)))
             p.prepare()
             p.playWhenReady = isVisible
@@ -81,6 +112,53 @@ class VideoWallpaperService : WallpaperService() {
     }
 
     companion object {
+        private const val TAG = "VideoWallpaper"
+        private const val SAMPLE_HEIGHT = 160
+
+        /**
+         * Wallpaper colors of a few frames from [video], each center-cropped to the screen's
+         * [aspect] (what the wallpaper actually shows). [WallpaperColors.fromBitmap] works out
+         * whether dark text reads well on it, like the system does for image wallpapers.
+         */
+        fun videoColors(video: File, aspect: Float): WallpaperColors? {
+            val mmr = MediaMetadataRetriever()
+            return try {
+                mmr.setDataSource(video.absolutePath)
+                val durationUs = (mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L) * 1000
+                val times = if (durationUs > 0) listOf(0.1, 0.4, 0.7).map { (durationUs * it).toLong() } else listOf(0L)
+                val frames = times.mapNotNull {
+                    mmr.getScaledFrameAtTime(it, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 512, 512)
+                }.map { cropToAspect(it, aspect) }
+                if (frames.isEmpty()) return null
+                // Side by side at the same height, so no empty (black) areas skew the result.
+                val scaled = frames.map {
+                    Bitmap.createScaledBitmap(it, (SAMPLE_HEIGHT * it.width / it.height).coerceAtLeast(1), SAMPLE_HEIGHT, true)
+                }
+                val strip = Bitmap.createBitmap(scaled.sumOf { it.width }, SAMPLE_HEIGHT, Bitmap.Config.ARGB_8888)
+                Canvas(strip).apply {
+                    var x = 0f
+                    for (b in scaled) { drawBitmap(b, x, 0f, null); x += b.width }
+                }
+                WallpaperColors.fromBitmap(strip)
+            } catch (t: Throwable) {
+                Log.w(TAG, "couldn't compute colors for $video", t)
+                null
+            } finally {
+                mmr.release()
+            }
+        }
+
+        private fun cropToAspect(b: Bitmap, aspect: Float): Bitmap {
+            if (b.width <= 0 || b.height <= 0) return b
+            return if (b.width.toFloat() / b.height > aspect) {
+                val w = (b.height * aspect).toInt().coerceIn(1, b.width)
+                Bitmap.createBitmap(b, (b.width - w) / 2, 0, w, b.height)
+            } else {
+                val h = (b.width / aspect).toInt().coerceIn(1, b.height)
+                Bitmap.createBitmap(b, 0, (b.height - h) / 2, b.width, h)
+            }
+        }
+
         val VIDEO_EXTENSIONS = setOf("mp4", "webm", "mkv", "mov", "m4v")
 
         fun component(ctx: Context) = ComponentName(ctx, VideoWallpaperService::class.java)
