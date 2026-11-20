@@ -206,4 +206,10 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PC�
     <string name="scan_none">No new wallpapers found. Each one must be in its own folder named by its Workshop ID.</string>
     <string name="scan_denied">File access wasn’t granted</string>
     <string name="scanning">Scanning…</string>
+
+    <string name="wp_status_text">Status bar text</string>
+    <string name="wp_status_auto">Auto</string>
+    <string name="wp_status_dark">Dark</string>
+    <string name="wp_status_light">Light</string>
+    <string name="wp_status_hint">Auto uses dark text when the top of the video is light. If it’s still hard to read, pick Dark or Light. Some launchers ignore this setting.</string>
 </resources>

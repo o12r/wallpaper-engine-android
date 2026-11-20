@@ -193,4 +193,10 @@
     <string name="scan_none">没有找到新的壁纸。每个壁纸需放在以创意工坊 ID 命名的单独文件夹中。</string>
     <string name="scan_denied">未获得文件访问权限</string>
     <string name="scanning">正在扫描…</string>
+
+    <string name="wp_status_text">状态栏文字颜色</string>
+    <string name="wp_status_auto">自动</string>
+    <string name="wp_status_dark">深色</string>
+    <string name="wp_status_light">浅色</string>
+    <string name="wp_status_hint">“自动”会在视频顶部较亮时使用深色文字。如果仍然看不清，可以手动选择深色或浅色。部分桌面可能不支持此设置。</string>
 </resources>

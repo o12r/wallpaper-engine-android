@@ -36,6 +36,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -101,6 +104,7 @@ private fun SettingsScreen(onBack: () -> Unit, onPreview: (Long) -> Unit) {
     var choices by remember { mutableStateOf<List<VideoChoice>?>(null) }
     var selected by remember { mutableStateOf(WallpaperPrefs.resolveVideo(ctx)?.absolutePath) }
     var muted by remember { mutableStateOf(WallpaperPrefs.muted(ctx)) }
+    var statusText by remember { mutableStateOf(WallpaperPrefs.statusText(ctx)) }
 
     LaunchedEffect(Unit) {
         choices = withContext(Dispatchers.IO) {
@@ -142,6 +146,34 @@ private fun SettingsScreen(onBack: () -> Unit, onPreview: (Long) -> Unit) {
                     ) {
                         Text(stringResource(R.string.wp_muted), Modifier.weight(1f))
                         Switch(checked = muted, onCheckedChange = { muted = it; WallpaperPrefs.setMuted(ctx, it) })
+                    }
+                }
+            }
+            item {
+                Card {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text(stringResource(R.string.wp_status_text))
+                        Spacer(Modifier.size(8.dp))
+                        val options = listOf(
+                            WallpaperPrefs.TEXT_AUTO to R.string.wp_status_auto,
+                            WallpaperPrefs.TEXT_DARK to R.string.wp_status_dark,
+                            WallpaperPrefs.TEXT_LIGHT to R.string.wp_status_light,
+                        )
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                            options.forEachIndexed { i, (value, label) ->
+                                SegmentedButton(
+                                    selected = statusText == value,
+                                    onClick = { statusText = value; WallpaperPrefs.setStatusText(ctx, value) },
+                                    shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                                ) { Text(stringResource(label)) }
+                            }
+                        }
+                        Spacer(Modifier.size(8.dp))
+                        Text(
+                            stringResource(R.string.wp_status_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

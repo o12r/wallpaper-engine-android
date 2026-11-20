@@ -4,6 +4,8 @@ import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
+import android.os.Build
 import android.media.MediaMetadataRetriever
 import android.os.Handler
 import android.os.Looper
@@ -40,10 +42,21 @@ class VideoWallpaperService : WallpaperService() {
         private val main = Handler(Looper.getMainLooper())
 
         /** Colors of the current video, so the system picks dark status-bar text on light videos. */
-        @Volatile private var colors: WallpaperColors? = null
+        @Volatile private var colors: VideoColors? = null
         @Volatile private var colorsFor: String? = null
 
-        override fun onComputeColors(): WallpaperColors? = colors
+        override fun onComputeColors(): WallpaperColors? {
+            val darkText = when (WallpaperPrefs.statusText(this@VideoWallpaperService)) {
+                WallpaperPrefs.TEXT_DARK -> true
+                WallpaperPrefs.TEXT_LIGHT -> false
+                else -> colors?.darkText ?: return null
+            }
+            return withTextHint(colors?.colors, darkText)
+        }
+
+        private fun notifyColors() {
+            try { notifyColorsChanged() } catch (t: Throwable) { Log.w(TAG, "notifyColorsChanged failed", t) }
+        }
 
         private fun updateColors(f: File) {
             val key = f.absolutePath
@@ -56,7 +69,7 @@ class VideoWallpaperService : WallpaperService() {
                 main.post {
                     if (colorsFor != key) return@post
                     colors = c
-                    try { notifyColorsChanged() } catch (t: Throwable) { Log.w(TAG, "notifyColorsChanged failed", t) }
+                    notifyColors()
                 }
             }, "wallpaper-colors").start()
         }
@@ -94,6 +107,7 @@ class VideoWallpaperService : WallpaperService() {
             when (key) {
                 WallpaperPrefs.KEY_PATH -> load()
                 WallpaperPrefs.KEY_MUTED -> applySettings()
+                WallpaperPrefs.KEY_STATUS_TEXT -> notifyColors()
             }
         }
 
@@ -116,11 +130,23 @@ class VideoWallpaperService : WallpaperService() {
         private const val SAMPLE_HEIGHT = 160
 
         /**
-         * Wallpaper colors of a few frames from [video], each center-cropped to the screen's
-         * [aspect] (what the wallpaper actually shows). [WallpaperColors.fromBitmap] works out
-         * whether dark text reads well on it, like the system does for image wallpapers.
+         * Dark text is used when the strip behind the status bar averages at least this relative
+         * luminance. WallpaperColors.fromBitmap only asks for dark text on almost entirely
+         * bright images, which leaves white text on many light videos.
          */
-        fun videoColors(video: File, aspect: Float): WallpaperColors? {
+        private const val DARK_TEXT_LUMINANCE = 0.4
+
+        /** Share of the screen height behind the status bar. */
+        private const val STATUS_BAR_SHARE = 0.06
+
+        class VideoColors(val colors: WallpaperColors?, val darkText: Boolean)
+
+        /**
+         * Looks at a few frames of [video], each center-cropped to the screen's [aspect] (what the
+         * wallpaper actually shows): their overall colors (for system theming) and whether the
+         * area behind the status bar is light enough to need dark text.
+         */
+        fun videoColors(video: File, aspect: Float): VideoColors? {
             val mmr = MediaMetadataRetriever()
             return try {
                 mmr.setDataSource(video.absolutePath)
@@ -130,6 +156,8 @@ class VideoWallpaperService : WallpaperService() {
                     mmr.getScaledFrameAtTime(it, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 512, 512)
                 }.map { cropToAspect(it, aspect) }
                 if (frames.isEmpty()) return null
+
+                val topLuminance = frames.map { topLuminance(it) }.average()
                 // Side by side at the same height, so no empty (black) areas skew the result.
                 val scaled = frames.map {
                     Bitmap.createScaledBitmap(it, (SAMPLE_HEIGHT * it.width / it.height).coerceAtLeast(1), SAMPLE_HEIGHT, true)
@@ -139,13 +167,47 @@ class VideoWallpaperService : WallpaperService() {
                     var x = 0f
                     for (b in scaled) { drawBitmap(b, x, 0f, null); x += b.width }
                 }
-                WallpaperColors.fromBitmap(strip)
+                Log.i(TAG, "${video.name}: status bar luminance %.2f".format(topLuminance))
+                VideoColors(WallpaperColors.fromBitmap(strip), topLuminance >= DARK_TEXT_LUMINANCE)
             } catch (t: Throwable) {
                 Log.w(TAG, "couldn't compute colors for $video", t)
                 null
             } finally {
                 mmr.release()
             }
+        }
+
+        /** Mean relative luminance (0..1) of the strip of [b] that sits behind the status bar. */
+        private fun topLuminance(b: Bitmap): Double {
+            val h = (b.height * STATUS_BAR_SHARE).toInt().coerceIn(1, b.height)
+            val px = IntArray(b.width * h)
+            b.getPixels(px, 0, b.width, 0, 0, b.width, h)
+            fun lin(c: Int): Double {
+                val v = c / 255.0
+                return if (v <= 0.04045) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
+            }
+            return px.sumOf { 0.2126 * lin(Color.red(it)) + 0.7152 * lin(Color.green(it)) + 0.0722 * lin(Color.blue(it)) } / px.size
+        }
+
+        /**
+         * [base] with the "supports dark text" hint set as asked. The constructor taking hints is
+         * public from Android 12; before that, colors of a plain white or black image carry the
+         * same hint (those versions have no wallpaper-based theming for the colors to affect).
+         */
+        fun withTextHint(base: WallpaperColors?, darkText: Boolean): WallpaperColors {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val primary = base?.primaryColor ?: Color.valueOf(if (darkText) Color.WHITE else Color.BLACK)
+                var hints = base?.colorHints ?: 0
+                hints = if (darkText) {
+                    (hints or WallpaperColors.HINT_SUPPORTS_DARK_TEXT) and WallpaperColors.HINT_SUPPORTS_DARK_THEME.inv()
+                } else {
+                    hints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT.inv()
+                }
+                return WallpaperColors(primary, base?.secondaryColor, base?.tertiaryColor, hints)
+            }
+            val solid = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+            solid.eraseColor(if (darkText) Color.WHITE else Color.BLACK)
+            return WallpaperColors.fromBitmap(solid)
         }
 
         private fun cropToAspect(b: Bitmap, aspect: Float): Bitmap {
@@ -182,6 +244,10 @@ class VideoWallpaperService : WallpaperService() {
 object WallpaperPrefs {
     const val KEY_PATH = "video_path"
     const val KEY_MUTED = "muted"
+    const val KEY_STATUS_TEXT = "status_text"
+    const val TEXT_AUTO = "auto"
+    const val TEXT_DARK = "dark"
+    const val TEXT_LIGHT = "light"
 
     fun prefs(ctx: Context): SharedPreferences =
         ctx.getSharedPreferences("video_wallpaper", Context.MODE_PRIVATE)
@@ -193,6 +259,10 @@ object WallpaperPrefs {
     fun selectedPath(ctx: Context): String? = prefs(ctx).getString(KEY_PATH, null)
     fun muted(ctx: Context) = prefs(ctx).getBoolean(KEY_MUTED, true)
     fun setMuted(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean(KEY_MUTED, v).apply()
+
+    /** Status bar text color over the wallpaper: [TEXT_AUTO], [TEXT_DARK] or [TEXT_LIGHT]. */
+    fun statusText(ctx: Context): String = prefs(ctx).getString(KEY_STATUS_TEXT, TEXT_AUTO) ?: TEXT_AUTO
+    fun setStatusText(ctx: Context, v: String) = prefs(ctx).edit().putString(KEY_STATUS_TEXT, v).apply()
 
     /** Selected video if it still exists, otherwise the most recently downloaded video. */
     fun resolveVideo(ctx: Context): File? {

@@ -17,6 +17,8 @@ import `in`.dragonbra.javasteam.steam.handlers.steamuser.SteamUser
 import `in`.dragonbra.javasteam.steam.handlers.steamuser.callback.LoggedOffCallback
 import `in`.dragonbra.javasteam.steam.handlers.steamuser.callback.LoggedOnCallback
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
+import `in`.dragonbra.javasteam.steam.steamclient.configuration.SteamConfiguration
+import `in`.dragonbra.javasteam.steam.discovery.FileServerListProvider
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackManager
 import `in`.dragonbra.javasteam.steam.steamclient.callbacks.ConnectedCallback
 import `in`.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback
@@ -114,13 +116,23 @@ object SteamSession {
     private const val KEY_ACCOUNT = "account"
     private const val KEY_TOKEN = "refresh_token"
     private const val KEY_GUARD = "guard_data"
+    private const val KEY_CELL = "cell_id"
+
+    /** Consecutive connection attempts that failed; reset once connected. */
+    @Volatile private var failedConnects = 0
 
     fun init(context: Context) {
         if (started) return
         started = true
         prefs = context.applicationContext.getSharedPreferences("steam", Context.MODE_PRIVATE)
 
-        client = SteamClient()
+        // Keep the CM server list (and which servers failed) across launches, so startup doesn't
+        // wait on the Steam directory web API every time, and ask for servers near our cell.
+        val config = SteamConfiguration.create { b ->
+            b.withServerListProvider(FileServerListProvider(java.io.File(context.applicationContext.filesDir, "steam_servers.bin")))
+            b.withCellID(prefs.getInt(KEY_CELL, 0))
+        }
+        client = SteamClient(config)
         manager = CallbackManager(client)
         steamUser = client.getHandler(SteamUser::class.java)!!
         unified = client.getHandler(SteamUnifiedMessages::class.java)!!
@@ -153,7 +165,7 @@ object SteamSession {
                 client.connect()
             } catch (t: Throwable) {
                 Log.e(TAG, "connect failed", t)
-                scheduleReconnect()
+                scheduleReconnect(retryDelay())
             }
         }
     }
@@ -207,6 +219,7 @@ object SteamSession {
 
     private fun onConnected() {
         connectedFlow.value = true
+        failedConnects = 0
         Log.i(TAG, "connected")
         val token = prefs.getString(KEY_TOKEN, null)
         val account = prefs.getString(KEY_ACCOUNT, null)
@@ -229,10 +242,21 @@ object SteamSession {
         if (!authInProgress && (_state.value is State.LoggedIn || _state.value is State.Authenticating)) {
             _state.value = State.Connecting
         }
-        scheduleReconnect(if (cb.isUserInitiated) 500 else 3000)
+        scheduleReconnect(if (cb.isUserInitiated) 500 else retryDelay())
+    }
+
+    /**
+     * A failed attempt usually means that one CM server was unreachable; JavaSteam marks it bad
+     * and picks another, so retry quickly at first and back off only if failures keep coming.
+     */
+    private fun retryDelay(): Long = when (failedConnects++) {
+        0, 1, 2 -> 300L
+        3, 4 -> 2000L
+        else -> 5000L
     }
 
     private fun onLoggedOn(cb: LoggedOnCallback) {
+        if (cb.result == EResult.OK && cb.cellID != 0) prefs.edit().putInt(KEY_CELL, cb.cellID).apply()
         if (cb.result == EResult.OK) {
             Log.i(TAG, "logged on as $currentAccount")
             // Wait for the license list before reporting LoggedIn; DepotDownloader needs it.
