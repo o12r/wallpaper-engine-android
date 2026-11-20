@@ -14,6 +14,7 @@ Browse, search and download **Wallpaper Engine** Steam Workshop wallpapers direc
 - Wallpaper details with preview images; tap any tag to browse it.
 - Download queue in the background with progress notification; reorder, move to front, or cancel.
 - Files are exported to `Download/WallpaperEngine/<workshop id>/`.
+- **Scan `Download/WallpaperEngine`** (Downloads screen) to add wallpapers that are already there: copied from a PC's `steamapps/workshop/content/431960/<id>`, or downloaded before a reinstall. Needs “All files access”, asked for only when you scan.
 - **Video wallpapers** can be set as a live wallpaper with the built‑in player (“WE Video Wallpaper” also appears in the system live‑wallpaper picker, with its own settings).
 - Full‑screen preview with a mock lock‑screen clock.
 - English and Simplified Chinese, light / dark / true black (AMOLED) themes.
@@ -80,6 +81,7 @@ Release builds are signed with the key described in a git‑ignored `keystore.pr
 - 壁纸详情和预览图；点击任意标签即可浏览该标签。
 - 后台下载队列，通知栏显示进度；可调整顺序、设为下一个下载、取消下载。
 - 文件导出到 `Download/WallpaperEngine/<壁纸ID>/`。
+- 可在下载页面**扫描 `Download/WallpaperEngine`**，把已有的壁纸加入列表（例如从电脑 `steamapps/workshop/content/431960/<ID>` 复制过来的，或重装前下载的）。需要“所有文件访问权限”，只在扫描时请求。
 - **视频**类壁纸可以用内置播放器设为动态壁纸（系统动态壁纸列表里也有“WE 视频壁纸”，带独立设置页）。
 - 全屏预览，叠加模拟锁屏时钟。
 - 中文 / 英文界面，浅色 / 深色 / 纯黑（AMOLED）主题。

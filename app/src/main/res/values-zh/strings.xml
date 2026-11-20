@@ -182,4 +182,15 @@
     <string name="update_no_apk">最新版本没有附带 APK</string>
     <string name="update_allow_install">请允许 WE 创意工坊安装应用，然后再点一次安装。</string>
     <string name="update_open_release">打开发布页面</string>
+
+    <string name="scan_public">扫描 Download/WallpaperEngine</string>
+    <string name="scan_permission_title">允许访问文件</string>
+    <string name="scan_permission_body">要找出 Download/WallpaperEngine 里已有的壁纸（从电脑复制过来的，或重装前下载的），需要授予“所有文件访问权限”。应用只会读取这个文件夹。
+
+每个壁纸需放在以创意工坊 ID 命名的单独文件夹中，和电脑上 steamapps/workshop/content/431960/&lt;ID&gt; 的结构一样。</string>
+    <string name="scan_open_settings">打开设置</string>
+    <string name="scan_found">已从 Download/WallpaperEngine 添加 %1$d 个壁纸</string>
+    <string name="scan_none">没有找到新的壁纸。每个壁纸需放在以创意工坊 ID 命名的单独文件夹中。</string>
+    <string name="scan_denied">未获得文件访问权限</string>
+    <string name="scanning">正在扫描…</string>
 </resources>

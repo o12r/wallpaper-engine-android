@@ -13,6 +13,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.weworkshop.app.download.DownloadManager
+import com.weworkshop.app.download.DownloadStatus
 import java.io.File
 
 /**
@@ -123,15 +124,22 @@ object WallpaperPrefs {
     }
 
     /** (workshop id, largest video file) for every downloaded item, newest first. */
-    fun downloadedVideos(): List<Pair<Long, File>> =
-        (DownloadManager.rootDir.listFiles() ?: emptyArray())
-            .filter { it.isDirectory && it.name.toLongOrNull() != null }
-            .sortedByDescending { it.lastModified() }
-            .mapNotNull { dir ->
-                val id = dir.name.toLong()
+    fun downloadedVideos(): List<Pair<Long, File>> {
+        val downloaded = (DownloadManager.rootDir.listFiles() ?: emptyArray())
+            .filter { it.isDirectory }
+            .mapNotNull { it.name.toLongOrNull() }
+        // Items found by scanning Download/WallpaperEngine live outside rootDir.
+        val imported = DownloadManager.entries.value.values
+            .filter { it.localDir != null && it.status is DownloadStatus.Done }
+            .map { it.id }
+        return (downloaded + imported).distinct()
+            .map { it to DownloadManager.contentDir(it) }
+            .sortedByDescending { it.second.lastModified() }
+            .mapNotNull { (id, _) ->
                 DownloadManager.contentFiles(id)
                     .filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }
                     .maxByOrNull { it.length() }
                     ?.let { id to it }
             }
+    }
 }

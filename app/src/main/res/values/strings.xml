@@ -194,4 +194,16 @@
     <string name="update_no_apk">The latest release has no APK attached</string>
     <string name="update_allow_install">Allow WE Workshop to install apps, then tap install again.</string>
     <string name="update_open_release">Open release page</string>
+
+    <!-- Scan Download/WallpaperEngine -->
+    <string name="scan_public">Scan Download/WallpaperEngine</string>
+    <string name="scan_permission_title">Allow file access</string>
+    <string name="scan_permission_body">To find wallpapers already in Download/WallpaperEngine (copied from a PC, or downloaded before a reinstall), WE Workshop needs “All files access”. It only reads that folder.
+
+Each wallpaper must be in its own folder named by its Workshop ID, like the PC’s steamapps/workshop/content/431960/&lt;ID&gt;.</string>
+    <string name="scan_open_settings">Open settings</string>
+    <string name="scan_found">Added %1$d wallpapers from Download/WallpaperEngine</string>
+    <string name="scan_none">No new wallpapers found. Each one must be in its own folder named by its Workshop ID.</string>
+    <string name="scan_denied">File access wasn’t granted</string>
+    <string name="scanning">Scanning…</string>
 </resources>

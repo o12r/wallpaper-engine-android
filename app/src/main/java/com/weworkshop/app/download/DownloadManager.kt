@@ -5,6 +5,9 @@ import com.weworkshop.app.R
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.os.SystemClock
 import android.provider.MediaStore
@@ -54,6 +57,8 @@ data class DownloadEntry(
     val type: String?,
     val fileSize: Long,
     val status: DownloadStatus,
+    /** Set for items found by [DownloadManager.scanPublic]: their files are read in place from here. */
+    val localDir: String? = null,
 )
 
 /**
@@ -72,8 +77,8 @@ object DownloadManager {
     private val _queue = MutableStateFlow<List<Long>>(emptyList())
     val queue: StateFlow<List<Long>> = _queue.asStateFlow()
 
-    /** Status an item had before it was (re)queued, restored if that queued run is cancelled. */
-    private val previousStatus = mutableMapOf<Long, DownloadStatus?>()
+    /** Entry an item had before it was (re)queued, restored if that queued run is cancelled. */
+    private val previousStatus = mutableMapOf<Long, DownloadEntry?>()
 
     private val wake = Channel<Unit>(Channel.CONFLATED)
     @Volatile private var currentId: Long? = null
@@ -97,9 +102,12 @@ object DownloadManager {
 
     fun itemDir(id: Long) = File(rootDir, id.toString())
 
+    /** Where an item's files are: the scanned public folder for imported items, else app storage. */
+    fun contentDir(id: Long): File = _entries.value[id]?.localDir?.let(::File) ?: itemDir(id)
+
     /** Downloaded content files (excluding DepotDownloader bookkeeping). */
     fun contentFiles(id: Long): List<File> =
-        itemDir(id).walkTopDown()
+        contentDir(id).walkTopDown()
             .onEnter { it.name != DepotDownloader.CONFIG_DIR }
             .filter { it.isFile }
             .toList()
@@ -107,7 +115,7 @@ object DownloadManager {
     fun enqueue(item: WorkshopItem) {
         val cur = _entries.value[item.id]
         if (cur != null && (cur.status is DownloadStatus.Queued || cur.status is DownloadStatus.Running)) return
-        synchronized(previousStatus) { previousStatus[item.id] = cur?.status }
+        synchronized(previousStatus) { previousStatus[item.id] = cur }
         val entry = DownloadEntry(item.id, item.title, item.previewUrl, item.type, item.fileSize, DownloadStatus.Queued)
         _entries.update { it + (item.id to entry) }
         _queue.update { it + item.id }
@@ -154,8 +162,8 @@ object DownloadManager {
 
     private fun restoreOrRemove(id: Long) {
         val prev = synchronized(previousStatus) { previousStatus.remove(id) }
-        if (prev is DownloadStatus.Done) {
-            setStatus(id, prev)
+        if (prev?.status is DownloadStatus.Done) {
+            _entries.update { it + (id to prev) }
         } else {
             itemDir(id).deleteRecursively()
             _entries.update { it - id }
@@ -393,6 +401,69 @@ object DownloadManager {
         "Download/$PUBLIC_DIR/$id"
     }
 
+    // region scanning Download/WallpaperEngine
+
+    val publicDir: File
+        get() = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), PUBLIC_DIR)
+
+    /** Whether we may list other apps' / a previous install's files in [publicDir]. */
+    fun canScanPublic(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                PackageManager.PERMISSION_GRANTED
+        }
+
+    /**
+     * Adds every Download/WallpaperEngine/<workshop id>/ folder that isn't already a usable
+     * download (exported earlier, copied from a PC's workshop/content/431960, or left over from
+     * a reinstall) as a finished entry whose files are read in place. Returns how many were added.
+     */
+    suspend fun scanPublic(): Int = withContext(Dispatchers.IO) {
+        val dirs = publicDir.listFiles()?.filter { it.isDirectory && it.name.toLongOrNull() != null }
+            ?: return@withContext 0
+        var added = 0
+        for (dir in dirs) {
+            val id = dir.name.toLong()
+            val cur = _entries.value[id]
+            when (cur?.status) {
+                null, is DownloadStatus.Failed -> {}
+                is DownloadStatus.Done -> if (contentFiles(id).isNotEmpty()) continue
+                else -> continue // queued or downloading
+            }
+            val files = dir.walkTopDown().onEnter { it.name != DepotDownloader.CONFIG_DIR }.filter { it.isFile }.toList()
+            if (files.isEmpty()) continue
+            val meta = runCatching { JSONObject(File(dir, "project.json").readText()) }.getOrNull()
+            val type = meta?.optString("type")?.trim()?.takeIf { it.isNotEmpty() }
+                ?.lowercase()?.replaceFirstChar { it.uppercase() }
+                ?: when {
+                    files.any { it.extension.lowercase() in VIDEO_EXTENSIONS } -> "Video"
+                    files.any { it.name.equals("scene.pkg", true) } -> "Scene"
+                    else -> cur?.type
+                }
+            val preview = meta?.optString("preview")?.takeIf { it.isNotBlank() }?.let { File(dir, it) }?.takeIf { it.isFile }
+                ?: files.firstOrNull { it.nameWithoutExtension.equals("preview", true) }
+            val entry = DownloadEntry(
+                id = id,
+                title = meta?.optString("title")?.trim()?.takeIf { it.isNotEmpty() } ?: cur?.title ?: id.toString(),
+                previewUrl = preview?.let { Uri.fromFile(it).toString() } ?: cur?.previewUrl.orEmpty(),
+                type = type,
+                fileSize = files.sumOf { it.length() },
+                status = DownloadStatus.Done("Download/$PUBLIC_DIR/$id"),
+                localDir = dir.absolutePath,
+            )
+            _entries.update { it + (id to entry) }
+            added++
+        }
+        if (added > 0) saveIndex()
+        added
+    }
+
+    private val VIDEO_EXTENSIONS = setOf("mp4", "webm", "mkv", "mov", "m4v")
+
+    // endregion
+
     // region persistence
 
     private fun loadIndex() {
@@ -410,6 +481,7 @@ object DownloadManager {
                 map[id] = DownloadEntry(
                     id, o.getString("title"), o.optString("preview"),
                     o.optString("type").ifEmpty { null }, o.optLong("size"), status,
+                    o.optString("dir").ifEmpty { null },
                 )
             }
             _entries.value = map
@@ -426,6 +498,7 @@ object DownloadManager {
                 val o = JSONObject()
                     .put("id", e.id).put("title", e.title).put("preview", e.previewUrl)
                     .put("type", e.type ?: "").put("size", e.fileSize)
+                if (e.localDir != null) o.put("dir", e.localDir)
                 when (val s = e.status) {
                     is DownloadStatus.Done -> o.put("status", "done").put("exported", s.exportedTo ?: "")
                     is DownloadStatus.Failed -> o.put("status", "failed").put("error", s.message)

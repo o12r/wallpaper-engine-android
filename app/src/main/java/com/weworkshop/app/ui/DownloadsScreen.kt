@@ -1,5 +1,26 @@
 package com.weworkshop.app.ui
 
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.FindInPage
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.weworkshop.app.R
 import androidx.compose.foundation.clickable
@@ -51,6 +72,7 @@ import com.weworkshop.app.steam.Workshop
 fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
     val entries by DownloadManager.entries.collectAsStateWithLifecycle()
     val queue by DownloadManager.queue.collectAsStateWithLifecycle()
+    val scan = rememberPublicScan()
     // Running first, then the queue in download order, then failed, then finished.
     val list = entries.values.sortedWith(
         compareBy<com.weworkshop.app.download.DownloadEntry> {
@@ -69,12 +91,22 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
             TopAppBar(
                 title = { Text(stringResource(R.string.downloads_title)) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+                actions = {
+                    if (scan.scanning) {
+                        CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
+                    } else {
+                        IconButton(onClick = scan.start) { Icon(Icons.Filled.FindInPage, stringResource(R.string.scan_public)) }
+                    }
+                },
             )
         },
     ) { padding ->
         if (list.isEmpty()) {
             Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.downloads_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(stringResource(R.string.downloads_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = scan.start, enabled = !scan.scanning) { Text(stringResource(R.string.scan_public)) }
+                }
             }
             return@Scaffold
         }
@@ -155,6 +187,73 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+class PublicScan(val scanning: Boolean, val start: () -> Unit)
+
+/**
+ * Scans Download/WallpaperEngine for existing wallpapers, asking for file access first if needed
+ * ("All files access" on Android 11+, which the user grants in system settings).
+ */
+@Composable
+private fun rememberPublicScan(): PublicScan {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var scanning by remember { mutableStateOf(false) }
+    var askAllFiles by remember { mutableStateOf(false) }
+    var waitingForSettings by rememberSaveable { mutableStateOf(false) }
+
+    fun run() {
+        if (scanning) return
+        scanning = true
+        scope.launch {
+            val n = try { DownloadManager.scanPublic() } finally { scanning = false }
+            val msg = if (n > 0) ctx.getString(R.string.scan_found, n) else ctx.getString(R.string.scan_none)
+            Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val legacyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) run() else Toast.makeText(ctx, R.string.scan_denied, Toast.LENGTH_SHORT).show()
+    }
+
+    // Coming back from the "All files access" settings page.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (waitingForSettings) {
+            waitingForSettings = false
+            if (DownloadManager.canScanPublic()) run()
+            else Toast.makeText(ctx, R.string.scan_denied, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    if (askAllFiles) {
+        AlertDialog(
+            onDismissRequest = { askAllFiles = false },
+            title = { Text(stringResource(R.string.scan_permission_title)) },
+            text = { Text(stringResource(R.string.scan_permission_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    askAllFiles = false
+                    waitingForSettings = true
+                    val app = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${ctx.packageName}"))
+                    try {
+                        ctx.startActivity(app)
+                    } catch (_: Exception) {
+                        ctx.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                    }
+                }) { Text(stringResource(R.string.scan_open_settings)) }
+            },
+            dismissButton = { TextButton(onClick = { askAllFiles = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    return PublicScan(scanning) {
+        when {
+            DownloadManager.canScanPublic() -> run()
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> askAllFiles = true
+            else -> legacyPermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
 }
