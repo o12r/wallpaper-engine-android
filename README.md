@@ -16,6 +16,8 @@ Browse, search and download **Wallpaper Engine** Steam Workshop wallpapers direc
 - Files are exported to `Download/WallpaperEngine/<workshop id>/`.
 - **Scan `Download/WallpaperEngine`** (Downloads screen) to add wallpapers that are already there: copied from a PC's `steamapps/workshop/content/431960/<id>`, or downloaded before a reinstall. Needs “All files access”, asked for only when you scan.
 - **Video wallpapers** can be set as a live wallpaper with the built‑in player (“WE Video Wallpaper” also appears in the system live‑wallpaper picker, with its own settings).
+  - Effects: a black or white status bar shade, blur, saturation, and sharp upscaling for low‑resolution videos.
+  - A visual crop editor: drag, pinch to zoom, rotate, mirror and flip, with the frame showing exactly what your screen shows.
 - Full‑screen preview with a mock lock‑screen clock.
 - English and Simplified Chinese, light / dark / true black (AMOLED) themes.
 - In‑app updates from GitHub Releases (checked on launch at most every 12 h, or manually in Settings).
@@ -83,6 +85,8 @@ Release builds are signed with the key described in a git‑ignored `keystore.pr
 - 文件导出到 `Download/WallpaperEngine/<壁纸ID>/`。
 - 可在下载页面**扫描 `Download/WallpaperEngine`**，把已有的壁纸加入列表（例如从电脑 `steamapps/workshop/content/431960/<ID>` 复制过来的，或重装前下载的）。需要“所有文件访问权限”，只在扫描时请求。
 - **视频**类壁纸可以用内置播放器设为动态壁纸（系统动态壁纸列表里也有“WE 视频壁纸”，带独立设置页）。
+  - 效果：黑色或白色的状态栏遮罩、模糊、饱和度，以及给低分辨率视频用的超分辨率（锐化放大）。
+  - 可视化裁剪：拖动、双指缩放、旋转、镜像和翻转，方框里就是屏幕上显示的样子。
 - 全屏预览，叠加模拟锁屏时钟。
 - 中文 / 英文界面，浅色 / 深色 / 纯黑（AMOLED）主题。
 - 从 GitHub Releases 检查并安装更新（启动时最多每 12 小时检查一次，也可在设置里手动检查）。

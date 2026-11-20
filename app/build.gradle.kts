@@ -15,8 +15,8 @@ android {
         applicationId = "com.weworkshop.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.2.2"
+        versionCode = 7
+        versionName = "1.3.0"
     }
 
     // Release signing comes from ../keystore.properties (git-ignored). Without it, release
@@ -100,4 +100,5 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
 
     implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-effect:1.11.1")
 }

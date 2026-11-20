@@ -1,19 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A fan of wallpaper cards; the front one shows a landscape and a play button. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- phone outline -->
+    <group android:rotation="-18" android:pivotX="52" android:pivotY="80">
+        <path
+            android:fillColor="#66C0F4"
+            android:fillAlpha="0.25"
+            android:pathData="M39,30h26a5,5 0,0 1,5 5v40a5,5 0,0 1,-5 5h-26a5,5 0,0 1,-5 -5v-40a5,5 0,0 1,5 -5z" />
+    </group>
+    <group android:rotation="-9" android:pivotX="54" android:pivotY="80">
+        <path
+            android:fillColor="#66C0F4"
+            android:fillAlpha="0.5"
+            android:pathData="M41,30h26a5,5 0,0 1,5 5v40a5,5 0,0 1,-5 5h-26a5,5 0,0 1,-5 -5v-40a5,5 0,0 1,5 -5z" />
+    </group>
+    <group>
+        <clip-path android:pathData="M45,30h26a5,5 0,0 1,5 5v40a5,5 0,0 1,-5 5h-26a5,5 0,0 1,-5 -5v-40a5,5 0,0 1,5 -5z" />
+        <path android:pathData="M40,30h36v50h-36z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="58" android:startY="30"
+                    android:endX="58" android:endY="80"
+                    android:startColor="#A6E0FF"
+                    android:endColor="#3A8FD9" />
+            </aapt:attr>
+        </path>
+        <path
+            android:fillColor="#1F5C93"
+            android:pathData="M40,80v-12l10,-9l8,7l7,-6l11,9v11z" />
+        <path
+            android:fillColor="#174A78"
+            android:pathData="M40,80v-6l14,-6l9,4l13,-5v13z" />
+    </group>
     <path
-        android:fillColor="#66C0F4"
-        android:pathData="M40,30h28a4,4 0,0 1,4 4v40a4,4 0,0 1,-4 4h-28a4,4 0,0 1,-4 -4v-40a4,4 0,0 1,4 -4zM40,35v38h28v-38z" />
-    <!-- mountains (wallpaper) -->
-    <path
-        android:fillColor="#66C0F4"
-        android:pathData="M42,66l8,-11l6,7l4,-5l6,9z" />
-    <!-- sun -->
-    <path
-        android:fillColor="#C7D5E0"
-        android:pathData="M60,45m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M54.5,41.5L65,48.5L54.5,55.5Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round" />
 </vector>

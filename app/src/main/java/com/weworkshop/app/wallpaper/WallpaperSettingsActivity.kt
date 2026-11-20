@@ -4,6 +4,7 @@ import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -40,7 +41,9 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -69,6 +72,7 @@ import com.weworkshop.app.ui.formatSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * Settings screen for the "WE Video Wallpaper" live wallpaper. The system live-wallpaper picker
@@ -109,6 +113,36 @@ private fun SettingsScreen(onBack: () -> Unit, onPreview: (Long) -> Unit) {
     var selected by remember { mutableStateOf(WallpaperPrefs.resolveVideo(ctx)?.absolutePath) }
     var muted by remember { mutableStateOf(WallpaperPrefs.muted(ctx)) }
     var statusText by remember { mutableStateOf(WallpaperPrefs.statusText(ctx)) }
+    // What Auto decided for the selected video: true = dark text, false = light, null = unknown.
+    var autoColors by remember { mutableStateOf<VideoWallpaperService.Companion.VideoColors?>(null) }
+    var look by remember { mutableStateOf(WallpaperPrefs.look(ctx)) }
+    val autoDark = autoColors?.darkText(look)
+    val aspect = remember { screenAspect(ctx) }
+    var frame by remember { mutableStateOf<Bitmap?>(null) }
+    var editingCrop by remember { mutableStateOf(false) }
+    LaunchedEffect(selected) {
+        val f = selected?.let(::File) ?: return@LaunchedEffect
+        frame = withContext(Dispatchers.IO) { loadPreviewFrame(f) }
+    }
+    if (editingCrop) {
+        CropEditorScreen(
+            frame, look, aspect,
+            onDone = { look = it; WallpaperPrefs.setLook(ctx, it); editingCrop = false },
+            onCancel = { editingCrop = false },
+        )
+        return
+    }
+    var analyzing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selected, look.geometryKey) {
+        val f = selected?.let(::File) ?: return@LaunchedEffect
+        autoColors = WallpaperPrefs.cachedColors(ctx, f)
+        if (autoColors == null) {
+            analyzing = true
+            autoColors = withContext(Dispatchers.IO) { VideoWallpaperService.analyze(ctx, f) }
+            analyzing = false
+        }
+    }
 
     LaunchedEffect(Unit) {
         choices = withContext(Dispatchers.IO) {
@@ -174,6 +208,16 @@ private fun SettingsScreen(onBack: () -> Unit, onPreview: (Long) -> Unit) {
                         }
                         Spacer(Modifier.size(8.dp))
                         Text(
+                            when {
+                                analyzing -> stringResource(R.string.wp_status_analyzing)
+                                autoDark == true -> stringResource(R.string.wp_status_auto_dark)
+                                autoDark == false -> stringResource(R.string.wp_status_auto_light)
+                                else -> stringResource(R.string.wp_status_auto_failed)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        Text(
                             stringResource(R.string.wp_status_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -189,6 +233,15 @@ private fun SettingsScreen(onBack: () -> Unit, onPreview: (Long) -> Unit) {
                             modifier = Modifier.clickable { uriHandler.openUri(STATUS_BAR_FIX_URL) },
                         )
                     }
+                }
+            }
+            item {
+                LookCard(look) { look = it; WallpaperPrefs.setLook(ctx, it) }
+            }
+            item {
+                TransformCard(frame, look, aspect, onEdit = { editingCrop = true }) {
+                    look = look.copy(rotation = 0, flipH = false, flipV = false, zoom = 1f, panX = 0f, panY = 0f)
+                    WallpaperPrefs.setLook(ctx, look)
                 }
             }
             item {
@@ -244,6 +297,93 @@ private fun applyWallpaper(ctx: Context) {
             Toast.makeText(ctx, ctx.getString(R.string.pick_in_list), Toast.LENGTH_LONG).show()
         } catch (_: ActivityNotFoundException) {
             Toast.makeText(ctx, ctx.getString(R.string.wp_no_picker), Toast.LENGTH_LONG).show()
+        }
+    }
+}
+
+/** Shade, blur, saturation and upscaling. Sliders save when released (blur rebuilds the player). */
+@Composable
+private fun LookCard(look: WallpaperLook, onChange: (WallpaperLook) -> Unit) {
+    var draft by remember(look) { mutableStateOf(look) }
+    Card {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            Text(stringResource(R.string.wp_effects))
+            LookSlider(R.string.wp_shade, draft.shade, 0..100, { draft = draft.copy(shade = it) }) { onChange(draft) }
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                listOf(false to R.string.wp_shade_black, true to R.string.wp_shade_white).forEachIndexed { i, (white, label) ->
+                    SegmentedButton(
+                        selected = draft.shadeWhite == white,
+                        onClick = { onChange(draft.copy(shadeWhite = white)) },
+                        shape = SegmentedButtonDefaults.itemShape(i, 2),
+                    ) { Text(stringResource(label)) }
+                }
+            }
+            Text(
+                stringResource(R.string.wp_shade_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LookSlider(R.string.wp_blur, draft.blur, 0..100, { draft = draft.copy(blur = it) }) { onChange(draft) }
+            LookSlider(R.string.wp_saturation, draft.saturation, 0..200, { draft = draft.copy(saturation = it) }) { onChange(draft) }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 8.dp)
+                    .clickable { onChange(draft.copy(upscale = !draft.upscale)) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.wp_upscale))
+                    Text(
+                        stringResource(if (draft.blur > 0) R.string.wp_upscale_blur else R.string.wp_upscale_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = draft.upscale, onCheckedChange = { onChange(draft.copy(upscale = it)) })
+            }
+            val reset = WallpaperLook(rotation = draft.rotation, flipH = draft.flipH, flipV = draft.flipV, zoom = draft.zoom, panX = draft.panX, panY = draft.panY)
+
+            if (draft != reset) {
+                TextButton(onClick = { onChange(reset) }, modifier = Modifier.align(Alignment.End)) {
+                    Text(stringResource(R.string.wp_effects_reset))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LookSlider(label: Int, value: Int, range: IntRange, onValue: (Int) -> Unit, onDone: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(label), Modifier.weight(1f))
+        Text("$value%", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    Slider(
+        value = value.toFloat(),
+        onValueChange = { onValue(it.roundToInt()) },
+        onValueChangeFinished = onDone,
+        valueRange = range.first.toFloat()..range.last.toFloat(),
+    )
+}
+
+/** What the screen shows (crop, rotation, flips), with a button to open the crop editor. */
+@Composable
+private fun TransformCard(frame: Bitmap?, look: WallpaperLook, aspect: Float, onEdit: () -> Unit, onReset: () -> Unit) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onEdit)) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            CropThumbnail(frame, look, aspect, Modifier.size(width = 72.dp, height = 144.dp))
+            Spacer(Modifier.size(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.wp_transform))
+                Text(
+                    stringResource(R.string.wp_transform_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row {
+                    TextButton(onClick = onEdit) { Text(stringResource(R.string.wp_crop_edit)) }
+                    if (look.hasGeometry) TextButton(onClick = onReset) { Text(stringResource(R.string.wp_crop_reset)) }
+                }
+            }
         }
     }
 }
