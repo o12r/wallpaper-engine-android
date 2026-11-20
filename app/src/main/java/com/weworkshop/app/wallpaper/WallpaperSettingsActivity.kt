@@ -54,7 +54,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -94,6 +96,8 @@ class WallpaperSettingsActivity : ComponentActivity() {
         }
     }
 }
+
+private const val STATUS_BAR_FIX_URL = "https://github.com/o12r/live-wallpaper-statusbar-fix/releases/latest"
 
 private data class VideoChoice(val id: Long, val title: String, val preview: String, val file: File)
 
@@ -173,6 +177,16 @@ private fun SettingsScreen(onBack: () -> Unit, onPreview: (Long) -> Unit) {
                             stringResource(R.string.wp_status_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        // Launchers like ZTE MiFavor ignore the hint; a separate root/LSPosed module fixes that.
+                        val uriHandler = LocalUriHandler.current
+                        Spacer(Modifier.size(8.dp))
+                        Text(
+                            stringResource(R.string.wp_status_module),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable { uriHandler.openUri(STATUS_BAR_FIX_URL) },
                         )
                     }
                 }

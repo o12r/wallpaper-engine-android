@@ -198,5 +198,6 @@
     <string name="wp_status_auto">自动</string>
     <string name="wp_status_dark">深色</string>
     <string name="wp_status_light">浅色</string>
+    <string name="wp_status_module">仍然看不清（例如中兴/努比亚系统）？已 root 并安装 LSPosed 的手机可以使用「动态壁纸状态栏修复」模块，让状态栏和锁屏跟随这个设置。</string>
     <string name="wp_status_hint">“自动”会在视频顶部较亮时使用深色文字。如果仍然看不清，可以手动选择深色或浅色。部分桌面可能不支持此设置。</string>
 </resources>

@@ -211,5 +211,6 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PCâ€
     <string name="wp_status_auto">Auto</string>
     <string name="wp_status_dark">Dark</string>
     <string name="wp_status_light">Light</string>
+    <string name="wp_status_module">Still unreadable (for example on ZTE/nubia)? On rooted phones with LSPosed, the Live Wallpaper Status Bar Fix module makes the status bar and lock screen follow this setting.</string>
     <string name="wp_status_hint">Auto uses dark text when the top of the video is light. If itâ€™s still hard to read, pick Dark or Light. Some launchers ignore this setting.</string>
 </resources>
