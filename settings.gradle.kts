@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "WEWorkshop"
 include(":app")
+include(":xposed-stubs")
+include(":statusbar-fix")
