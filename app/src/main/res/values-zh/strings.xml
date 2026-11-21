@@ -225,4 +225,13 @@
     <string name="wp_crop_done">完成</string>
     <string name="wp_crop_reset">还原</string>
     <string name="wp_crop_hint">拖动移动画面，双指缩放，双击放大或还原。方框就是你的屏幕。</string>
+    <string name="settings_downloads">下载</string>
+    <string name="settings_concurrent_downloads">同时下载数：%1$d</string>
+    <string name="settings_chunk_threads">每个下载的线程数：%1$d</string>
+    <string name="settings_downloads_desc">线程数修改对之后开始的下载生效。</string>
+    <string name="scene_convert">转换为动态壁纸（实验性）</string>
+    <string name="scene_reconvert">重新转换（实验性）</string>
+    <string name="scene_converting">正在转换场景… %1$d%%</string>
+    <string name="scene_convert_failed">转换失败：%1$s</string>
+    <string name="scene_convert_note">实验性功能：把场景的图层渲染成带视差、呼吸和粒子效果的循环视频，不支持着色器、脚本和交互效果。</string>
 </resources>

@@ -124,6 +124,10 @@ object Workshop {
                 includeRecentVotesOnly = true
             }
             typeTag?.let { addRequiredtags(it) }
+            // Steam flags nearly every Application wallpaper as "incompatible" (2377 of 2378), and
+            // QueryFiles hides incompatible items unless asked for them, so the list came back
+            // empty. This mirrors the workshop page's "Show incompatible items" checkbox.
+            if (typeTag == "Application") addRequiredFlags("incompatible")
             genreTag?.let { addRequiredtags(it) }
             resolutionTag?.let { addRequiredtags(it) }
             matchAllTags = true

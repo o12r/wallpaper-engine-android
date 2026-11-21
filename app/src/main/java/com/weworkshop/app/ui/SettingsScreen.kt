@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -127,6 +128,30 @@ fun SettingsScreen(onBack: () -> Unit) {
                         Text(ageLabel(a))
                     }
                 }
+            }
+
+            Section(stringResource(R.string.settings_downloads)) {
+                val concurrent by AppSettings.concurrentDownloads.collectAsStateWithLifecycle()
+                val chunks by AppSettings.chunkThreads.collectAsStateWithLifecycle()
+                Text(stringResource(R.string.settings_concurrent_downloads, concurrent))
+                Slider(
+                    value = concurrent.toFloat(),
+                    onValueChange = { AppSettings.setConcurrentDownloads(Math.round(it)) },
+                    valueRange = 1f..5f,
+                    steps = 3,
+                )
+                Text(stringResource(R.string.settings_chunk_threads, chunks))
+                Slider(
+                    value = chunks.toFloat(),
+                    onValueChange = { AppSettings.setChunkThreads(Math.round(it / 2f) * 2) },
+                    valueRange = 2f..32f,
+                    steps = 14,
+                )
+                Text(
+                    stringResource(R.string.settings_downloads_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             Card(Modifier.fillMaxWidth()) {

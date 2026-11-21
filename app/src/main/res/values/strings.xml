@@ -238,4 +238,13 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PCâ€
     <string name="wp_crop_done">Done</string>
     <string name="wp_crop_reset">Reset</string>
     <string name="wp_crop_hint">Drag to move, pinch to zoom, double-tap to zoom in or out. The frame is your screen.</string>
+    <string name="settings_downloads">Downloads</string>
+    <string name="settings_concurrent_downloads">Simultaneous downloads: %1$d</string>
+    <string name="settings_chunk_threads">Threads per download: %1$d</string>
+    <string name="settings_downloads_desc">Thread changes apply to downloads started afterwards.</string>
+    <string name="scene_convert">Convert to live wallpaper (experimental)</string>
+    <string name="scene_reconvert">Convert again (experimental)</string>
+    <string name="scene_converting">Converting sceneâ€¦ %1$d%%</string>
+    <string name="scene_convert_failed">Conversion failed: %1$s</string>
+    <string name="scene_convert_note">Experimental: renders the scene\'s image layers into a looping video with parallax, breathing and particle effects. Shaders, scripts and interactive effects are not supported.</string>
 </resources>

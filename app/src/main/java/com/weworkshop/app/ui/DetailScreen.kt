@@ -67,6 +67,7 @@ import coil3.compose.AsyncImage
 import com.weworkshop.app.R
 import com.weworkshop.app.download.DownloadManager
 import com.weworkshop.app.download.DownloadStatus
+import com.weworkshop.app.scene.SceneConverter
 import com.weworkshop.app.steam.Workshop
 import com.weworkshop.app.steam.WorkshopItem
 import com.weworkshop.app.wallpaper.VideoWallpaperService
@@ -198,6 +199,33 @@ fun DetailScreen(
     }
 }
 
+/** EXPERIMENTAL scene -> MP4 conversion controls. */
+@Composable
+private fun SceneConvertRow(id: Long, state: SceneConverter.State?, converted: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        when (state) {
+            is SceneConverter.State.Running -> {
+                Text(stringResource(R.string.scene_converting, (state.progress * 100).toInt()))
+                LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
+                OutlinedButton(onClick = { SceneConverter.cancel(id) }) { Text(stringResource(R.string.cancel)) }
+            }
+            else -> {
+                if (state is SceneConverter.State.Failed) {
+                    Text(stringResource(R.string.scene_convert_failed, state.message), color = MaterialTheme.colorScheme.error)
+                }
+                OutlinedButton(onClick = { SceneConverter.convert(id) }) {
+                    Text(stringResource(if (converted) R.string.scene_reconvert else R.string.scene_convert))
+                }
+            }
+        }
+        Text(
+            stringResource(R.string.scene_convert_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloads: () -> Unit, onPreview: (Long) -> Unit) {
     val ctx = LocalContext.current
@@ -239,7 +267,10 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                 }
 
                 is DownloadStatus.Done -> {
-                    val files = remember(status) { DownloadManager.contentFiles(item.id) }
+                    val convStates by SceneConverter.states.collectAsStateWithLifecycle()
+                    val conv = convStates[item.id]
+                    // Re-list after a conversion finishes so the new MP4 is picked up.
+                    val files = remember(status, conv) { DownloadManager.contentFiles(item.id) }
                     val video = files.filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }.maxByOrNull { it.length() }
                     val image = files.filter { it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.maxByOrNull { it.length() }
 
@@ -266,6 +297,9 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                             else -> Spacer(Modifier.weight(1f))
                         }
                         OutlinedButton(onClick = { onPreview(item.id) }) { Text(stringResource(R.string.preview)) }
+                    }
+                    if (SceneConverter.canConvert(item.id)) {
+                        SceneConvertRow(item.id, conv, converted = video?.name == SceneConverter.OUTPUT_NAME)
                     }
                     if (video == null && item.type == "Scene") {
                         Text(

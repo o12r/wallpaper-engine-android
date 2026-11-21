@@ -1,6 +1,7 @@
 package com.weworkshop.app.download
 
 import com.weworkshop.app.App
+import com.weworkshop.app.AppSettings
 import com.weworkshop.app.R
 import android.content.ContentValues
 import android.content.Context
@@ -62,7 +63,7 @@ data class DownloadEntry(
 )
 
 /**
- * Sequential workshop download queue. Items land in app-specific storage
+ * Parallel workshop download queue (up to [AppSettings.concurrentDownloads] items at once). Items land in app-specific storage
  * (Android/data/<pkg>/files/workshop/<id>) and are then copied to the public
  * Download/WallpaperEngine/<id> folder so other apps / file managers can see them.
  */
@@ -81,8 +82,8 @@ object DownloadManager {
     private val previousStatus = mutableMapOf<Long, DownloadEntry?>()
 
     private val wake = Channel<Unit>(Channel.CONFLATED)
-    @Volatile private var currentId: Long? = null
-    @Volatile private var currentJob: Job? = null
+    /** Downloads currently running, by item id. Only touched from the dispatcher and [cancel]. */
+    private val running = java.util.concurrent.ConcurrentHashMap<Long, Job>()
     private var workerStarted = false
 
     private val _entries = MutableStateFlow<Map<Long, DownloadEntry>>(emptyMap())
@@ -124,25 +125,29 @@ object DownloadManager {
         wake.trySend(Unit)
     }
 
-    /** Single worker: always runs the first id in [queue], so reordering takes effect immediately. */
+    /**
+     * Dispatcher: keeps up to [AppSettings.concurrentDownloads] downloads running, always taking
+     * from the front of [queue] so reordering takes effect for the next free slot.
+     */
     @Synchronized
     private fun startWorker() {
         if (workerStarted) return
         workerStarted = true
+        // Raising the limit in settings should start more queued items right away.
+        scope.launch { AppSettings.concurrentDownloads.collect { wake.trySend(Unit) } }
         scope.launch {
             while (true) {
-                val next = _queue.value.firstOrNull()
-                if (next == null) {
-                    wake.receive()
-                    continue
+                while (running.size < AppSettings.concurrentDownloads.value) {
+                    val next = _queue.value.firstOrNull() ?: break
+                    _queue.update { it - next }
+                    val job = launch { runDownload(next) }
+                    running[next] = job
+                    job.invokeOnCompletion {
+                        running.remove(next, job)
+                        wake.trySend(Unit)
+                    }
                 }
-                _queue.update { it - next }
-                currentId = next
-                val job = launch { runDownload(next) }
-                currentJob = job
-                job.join()
-                currentJob = null
-                currentId = null
+                wake.receive()
             }
         }
     }
@@ -155,8 +160,8 @@ object DownloadManager {
         if (id in _queue.value) {
             _queue.update { it - id }
             restoreOrRemove(id)
-        } else if (id == currentId) {
-            currentJob?.cancel() // runDownload cleans up in its CancellationException handler
+        } else {
+            running[id]?.cancel() // runDownload cleans up in its CancellationException handler
         }
     }
 
@@ -279,7 +284,7 @@ object DownloadManager {
             SteamSession.licenses,
             true, // debug: route DepotDownloader's own log through LogManager → logcat
             false, // useLanCache
-            8, // maxDownloads
+            AppSettings.chunkThreads.value, // maxDownloads: parallel chunk connections
             2, // maxFileWrites
         ).use { dd ->
             dd.addListener(object : IDownloadListener {

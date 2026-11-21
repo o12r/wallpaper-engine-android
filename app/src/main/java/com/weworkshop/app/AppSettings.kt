@@ -38,6 +38,14 @@ object AppSettings {
     private val _filtersExpanded = MutableStateFlow(true)
     val filtersExpanded: StateFlow<Boolean> = _filtersExpanded.asStateFlow()
 
+    /** How many workshop items download at the same time. */
+    private val _concurrentDownloads = MutableStateFlow(3)
+    val concurrentDownloads: StateFlow<Int> = _concurrentDownloads.asStateFlow()
+
+    /** Parallel chunk connections used inside one item's download. */
+    private val _chunkThreads = MutableStateFlow(8)
+    val chunkThreads: StateFlow<Int> = _chunkThreads.asStateFlow()
+
     fun init(context: Context) {
         if (::app.isInitialized) return
         app = context.applicationContext
@@ -46,6 +54,18 @@ object AppSettings {
         val legacy = app.getSharedPreferences("browse", Context.MODE_PRIVATE).getStringSet("ages", null)
         _ages.value = (prefs.getStringSet("ages", null) ?: legacy ?: setOf("Everyone")).toSet()
         _filtersExpanded.value = prefs.getBoolean("filters_expanded", true)
+        _concurrentDownloads.value = prefs.getInt("concurrent_downloads", 3).coerceIn(1, 5)
+        _chunkThreads.value = prefs.getInt("chunk_threads", 8).coerceIn(2, 32)
+    }
+
+    fun setConcurrentDownloads(n: Int) {
+        _concurrentDownloads.value = n.coerceIn(1, 5)
+        prefs.edit().putInt("concurrent_downloads", _concurrentDownloads.value).apply()
+    }
+
+    fun setChunkThreads(n: Int) {
+        _chunkThreads.value = n.coerceIn(2, 32)
+        prefs.edit().putInt("chunk_threads", _chunkThreads.value).apply()
     }
 
     fun setTheme(mode: ThemeMode) {
