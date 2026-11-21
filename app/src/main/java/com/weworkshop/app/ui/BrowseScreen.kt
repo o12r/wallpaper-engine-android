@@ -419,6 +419,10 @@ private fun WallpaperGrid(vm: BrowseViewModel, downloaded: Set<Long>, onOpen: (L
                     }
 
                     vm.loading && !vm.refreshing -> CircularProgressIndicator()
+                    // Wallpaper Engine doesn't allow publishing application wallpapers to the
+                    // Workshop, so this type is empty (Steam's own site lists about 1).
+                    vm.endReached && vm.items.isEmpty() && vm.typeTag == "Application" ->
+                        Text(stringResource(R.string.no_application_items))
                     vm.endReached && vm.items.isEmpty() -> Text(stringResource(R.string.no_results))
                     vm.endReached -> Text(stringResource(R.string.end_reached), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

@@ -247,4 +247,5 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PCâ€
     <string name="scene_converting">Converting sceneâ€¦ %1$d%%</string>
     <string name="scene_convert_failed">Conversion failed: %1$s</string>
     <string name="scene_convert_note">Experimental: renders the scene\'s image layers into a looping video with parallax, breathing and particle effects. Shaders, scripts and interactive effects are not supported.</string>
+    <string name="no_application_items">Almost no Application wallpapers are on the Workshop: Wallpaper Engine doesn\'t allow publishing them there, and Steam\'s own site shows only about one. (Most also need Windows to run.)</string>
 </resources>

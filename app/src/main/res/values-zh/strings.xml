@@ -234,4 +234,5 @@
     <string name="scene_converting">正在转换场景… %1$d%%</string>
     <string name="scene_convert_failed">转换失败：%1$s</string>
     <string name="scene_convert_note">实验性功能：把场景的图层渲染成带视差、呼吸和粒子效果的循环视频，不支持着色器、脚本和交互效果。</string>
+    <string name="no_application_items">创意工坊上几乎没有应用类壁纸：Wallpaper Engine 不允许把应用壁纸发布到创意工坊，Steam 网页上也只有约 1 个。（而且大多需要 Windows 才能运行。）</string>
 </resources>
