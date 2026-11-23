@@ -112,7 +112,7 @@
     <string name="set_live_wallpaper">Set as live wallpaper</string>
     <string name="set_static_wallpaper">Set as wallpaper</string>
     <string name="scene_note">Scene wallpapers (scene.pkg) need the official Wallpaper Engine Android app or another compatible player. The files are saved in the folder above.</string>
-    <string name="web_note">Web and application wallpapers need the desktop runtime and usually can’t be used on a phone.</string>
+    <string name="web_note">Web wallpapers are rendered in a WebView. Pages that rely on Wallpaper Engine\u2019s desktop APIs may not work fully; setting one as a live wallpaper is experimental.</string>
     <string name="redownload">Download again</string>
     <string name="preview">Preview</string>
     <string name="pick_in_list">Choose “WE Video Wallpaper” in the list</string>
@@ -248,4 +248,15 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PC�
     <string name="scene_convert_failed">Conversion failed: %1$s</string>
     <string name="scene_convert_note">Experimental: renders the scene\'s image layers into a looping video with parallax, breathing and particle effects. Shaders, scripts and interactive effects are not supported.</string>
     <string name="no_application_items">Almost no Application wallpapers are on the Workshop: Wallpaper Engine doesn\'t allow publishing them there, and Steam\'s own site shows only about one. (Most also need Windows to run.)</string>
+    <string name="search_history">Recent searches</string>
+    <string name="search_history_clear">Clear all</string>
+    <string name="open_with">Open with…</string>
+    <string name="share">Share</string>
+    <string name="open_no_file">No files to open</string>
+    <string name="open_no_app">No app can open this file</string>
+    <string name="open_failed">Couldn\'t open: %1$s</string>
+    <string name="set_web_wallpaper">Set as live wallpaper (experimental)</string>
+    <string name="app_note">Application wallpapers need the desktop runtime and can\u2019t be used on a phone.</string>
+    <string name="web_wallpaper_name">WE web wallpaper (experimental)</string>
+    <string name="web_wallpaper_desc">Renders a downloaded Wallpaper Engine web wallpaper in a WebView.</string>
 </resources>

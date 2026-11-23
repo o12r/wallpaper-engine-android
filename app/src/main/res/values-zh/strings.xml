@@ -106,7 +106,7 @@
     <string name="set_live_wallpaper">设为动态壁纸</string>
     <string name="set_static_wallpaper">设为静态壁纸</string>
     <string name="scene_note">场景类壁纸（scene.pkg）需要 Wallpaper Engine 官方安卓版或其它兼容播放器打开，文件已保存在上面的目录中。</string>
-    <string name="web_note">网页 / 应用类壁纸依赖电脑端运行环境，手机上通常无法直接使用。</string>
+    <string name="web_note">网页壁纸使用 WebView 渲染。依赖 Wallpaper Engine 电脑端接口的页面可能无法完整显示；设为动态壁纸为实验性功能。</string>
     <string name="redownload">重新下载</string>
     <string name="preview">预览</string>
     <string name="pick_in_list">请在列表中选择“WE 视频壁纸”</string>
@@ -235,4 +235,15 @@
     <string name="scene_convert_failed">转换失败：%1$s</string>
     <string name="scene_convert_note">实验性功能：把场景的图层渲染成带视差、呼吸和粒子效果的循环视频，不支持着色器、脚本和交互效果。</string>
     <string name="no_application_items">创意工坊上几乎没有应用类壁纸：Wallpaper Engine 不允许把应用壁纸发布到创意工坊，Steam 网页上也只有约 1 个。（而且大多需要 Windows 才能运行。）</string>
+    <string name="search_history">搜索记录</string>
+    <string name="search_history_clear">清空</string>
+    <string name="open_with">用其他应用打开</string>
+    <string name="share">分享</string>
+    <string name="open_no_file">没有可打开的文件</string>
+    <string name="open_no_app">没有可以打开此文件的应用</string>
+    <string name="open_failed">无法打开：%1$s</string>
+    <string name="set_web_wallpaper">设为动态壁纸（实验性）</string>
+    <string name="app_note">应用类壁纸依赖电脑端运行环境，手机上无法使用。</string>
+    <string name="web_wallpaper_name">WE 网页壁纸（实验性）</string>
+    <string name="web_wallpaper_desc">用 WebView 渲染已下载的 Wallpaper Engine 网页壁纸。</string>
 </resources>

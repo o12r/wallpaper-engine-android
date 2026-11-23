@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.History
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.Tune
@@ -126,6 +128,7 @@ class BrowseViewModel : ViewModel() {
         if (appliedSearch.isNotEmpty() && appliedSearch != lastSearch) sort = SortOrder.RELEVANCE
         if (appliedSearch.isEmpty() && sort == SortOrder.RELEVANCE) sort = SortOrder.TREND_WEEK
         lastSearch = appliedSearch
+        AppSettings.addSearch(appliedSearch)
         refresh()
     }
     private var lastSearch = ""
@@ -237,6 +240,7 @@ fun BrowseScreen(
                 }
             }
 
+            val searchFocused = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             OutlinedTextField(
                 value = vm.search,
                 onValueChange = { vm.search = it },
@@ -251,8 +255,22 @@ fun BrowseScreen(
                     focus.clearFocus(); vm.applySearch(vm.search)
                 }),
                 shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
+                    .onFocusChanged { searchFocused.value = it.isFocused },
             )
+
+            val history by AppSettings.searchHistory.collectAsStateWithLifecycle()
+            val typed = vm.search.trim()
+            val shown = history.filter { typed.isEmpty() || (it.contains(typed, ignoreCase = true) && !it.equals(typed, ignoreCase = true)) }
+            if (searchFocused.value && shown.isNotEmpty()) {
+                SearchHistoryList(
+                    shown,
+                    onPick = { focus.clearFocus(); vm.applySearch(it) },
+                    onRemove = { AppSettings.removeSearch(it) },
+                    onClear = { AppSettings.clearSearchHistory() },
+                )
+                return@Column
+            }
 
             FilterPanel(vm)
 
@@ -523,5 +541,32 @@ fun formatCount(n: Int): String {
         !zh && n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0)
         !zh && n >= 1_000 -> "%.1fK".format(n / 1_000.0)
         else -> n.toString()
+    }
+}
+
+/** Recent searches shown while the search box is focused. */
+@Composable
+private fun SearchHistoryList(items: List<String>, onPick: (String) -> Unit, onRemove: (String) -> Unit, onClear: () -> Unit) {
+    androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.search_history), Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                androidx.compose.material3.TextButton(onClick = onClear) { Text(stringResource(R.string.search_history_clear)) }
+            }
+        }
+        items(items.size, key = { items[it] }) { i ->
+            val q = items[i]
+            Row(
+                Modifier.fillMaxWidth().clickable { onPick(q) }.padding(start = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.History, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(q, Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                IconButton(onClick = { onRemove(q) }) { Icon(Icons.Filled.Clear, stringResource(R.string.delete)) }
+            }
+        }
     }
 }

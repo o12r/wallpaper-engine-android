@@ -46,6 +46,10 @@ object AppSettings {
     private val _chunkThreads = MutableStateFlow(8)
     val chunkThreads: StateFlow<Int> = _chunkThreads.asStateFlow()
 
+    private val _searchHistory = MutableStateFlow<List<String>>(emptyList())
+    /** Most recent searches first, at most [MAX_SEARCH_HISTORY]. */
+    val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
+
     fun init(context: Context) {
         if (::app.isInitialized) return
         app = context.applicationContext
@@ -56,7 +60,28 @@ object AppSettings {
         _filtersExpanded.value = prefs.getBoolean("filters_expanded", true)
         _concurrentDownloads.value = prefs.getInt("concurrent_downloads", 3).coerceIn(1, 5)
         _chunkThreads.value = prefs.getInt("chunk_threads", 8).coerceIn(2, 32)
+        _searchHistory.value = runCatching {
+            val a = org.json.JSONArray(prefs.getString("search_history", "[]"))
+            List(a.length()) { a.getString(it) }.take(MAX_SEARCH_HISTORY)
+        }.getOrDefault(emptyList())
     }
+
+    const val MAX_SEARCH_HISTORY = 20
+
+    private fun saveHistory(list: List<String>) {
+        _searchHistory.value = list
+        prefs.edit().putString("search_history", org.json.JSONArray(list).toString()).apply()
+    }
+
+    fun addSearch(query: String) {
+        val q = query.trim()
+        if (q.isEmpty()) return
+        saveHistory((listOf(q) + _searchHistory.value.filter { !it.equals(q, ignoreCase = true) }).take(MAX_SEARCH_HISTORY))
+    }
+
+    fun removeSearch(query: String) = saveHistory(_searchHistory.value.filter { it != query })
+
+    fun clearSearchHistory() = saveHistory(emptyList())
 
     fun setConcurrentDownloads(n: Int) {
         _concurrentDownloads.value = n.coerceIn(1, 5)

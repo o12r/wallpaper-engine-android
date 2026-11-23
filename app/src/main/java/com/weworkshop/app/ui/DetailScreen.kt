@@ -71,6 +71,7 @@ import com.weworkshop.app.scene.SceneConverter
 import com.weworkshop.app.steam.Workshop
 import com.weworkshop.app.steam.WorkshopItem
 import com.weworkshop.app.wallpaper.VideoWallpaperService
+import com.weworkshop.app.wallpaper.WebWallpaper
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
@@ -85,11 +86,22 @@ fun DetailScreen(
     onBrowseTag: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
-    var item by remember { mutableStateOf(Workshop.cache[id]) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var reload by remember { mutableIntStateOf(0) }
     val downloads by DownloadManager.entries.collectAsStateWithLifecycle()
     val entry = downloads[id]
+    // Downloaded wallpapers show immediately from the local entry; Steam data fills in behind.
+    var item by remember {
+        mutableStateOf(
+            Workshop.cache[id] ?: DownloadManager.entries.value[id]?.takeIf { it.status is DownloadStatus.Done }?.let { e ->
+                WorkshopItem(
+                    id = e.id, title = e.title, previewUrl = e.previewUrl, fileSize = e.fileSize,
+                    tags = listOfNotNull(e.type), description = "", subscriptions = 0, favorited = 0,
+                    timeUpdated = 0, voteScore = 0f, votesUp = 0, partial = true,
+                )
+            },
+        )
+    }
+    var error by remember { mutableStateOf<String?>(null) }
+    var reload by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(id, reload) {
         error = null
@@ -167,8 +179,10 @@ fun DetailScreen(
                 }
                 it.ageRating?.let { a -> Tag(ageLabel(a), if (a == "Everyone") Color(0xCC2E7D32) else Color(0xCCB3261E)) }
                 Tag(formatSize(it.fileSize))
-                Tag(stringResource(R.string.tag_subscriptions, formatCount(it.subscriptions)))
-                Tag(stringResource(R.string.tag_favorites, formatCount(it.favorited)))
+                if (!it.partial) {
+                    Tag(stringResource(R.string.tag_subscriptions, formatCount(it.subscriptions)))
+                    Tag(stringResource(R.string.tag_favorites, formatCount(it.favorited)))
+                }
                 if (it.timeUpdated > 0) {
                     Tag(stringResource(R.string.tag_updated, DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it.timeUpdated * 1000))))
                 }
@@ -273,6 +287,7 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                     val files = remember(status, conv) { DownloadManager.contentFiles(item.id) }
                     val video = files.filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }.maxByOrNull { it.length() }
                     val image = files.filter { it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.maxByOrNull { it.length() }
+                    val webFile = if (item.type == "Web") remember(status) { WebWallpaper.entryFile(item.id) } else null
 
                     Text(stringResource(R.string.downloaded_files, files.size), color = MaterialTheme.colorScheme.secondary)
                     Text(
@@ -281,6 +296,11 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         when {
+                            webFile != null -> FilledTonalButton(onClick = { setWebWallpaper(ctx, webFile) }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
+                                Text(stringResource(R.string.set_web_wallpaper))
+                            }
+
                             video != null -> Button(onClick = { setVideoWallpaper(ctx, video) }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
                                 Text(stringResource(R.string.set_live_wallpaper))
@@ -310,14 +330,14 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                     }
                     if (item.type == "Web" || item.type == "Application") {
                         Text(
-                            stringResource(R.string.web_note),
+                            stringResource(if (item.type == "Web") R.string.web_note else R.string.app_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { DownloadManager.delete(item.id) }) { Text(stringResource(R.string.delete)) }
-                        OutlinedButton(onClick = { DownloadManager.enqueue(item) }) { Text(stringResource(R.string.redownload)) }
+                        OutlinedButton(onClick = { DownloadManager.enqueue(item) }, enabled = !item.partial) { Text(stringResource(R.string.redownload)) }
                     }
                 }
             }

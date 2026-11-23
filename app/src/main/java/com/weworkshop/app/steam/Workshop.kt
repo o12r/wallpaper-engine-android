@@ -31,6 +31,8 @@ data class WorkshopItem(
     /** Direct download URL for legacy single-file items; usually empty. */
     val fileUrl: String = "",
     val fileName: String = "",
+    /** Built from the local download entry only (no Steam data yet): can't be re-downloaded from this. */
+    val partial: Boolean = false,
 ) {
     val type: String? get() = tags.firstOrNull { it in Workshop.TYPE_TAGS }
     val ageRating: String? get() = tags.firstOrNull { it in Workshop.AGE_TAGS }

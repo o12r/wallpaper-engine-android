@@ -67,6 +67,7 @@ import com.weworkshop.app.download.DownloadManager
 import com.weworkshop.app.download.DownloadStatus
 import com.weworkshop.app.steam.Workshop
 import com.weworkshop.app.wallpaper.VideoWallpaperService
+import com.weworkshop.app.wallpaper.WebWallpaper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -96,6 +97,7 @@ fun PreviewScreen(id: Long, onBack: () -> Unit) {
     val files = remember(done) { if (done) DownloadManager.contentFiles(id) else emptyList() }
     val video = files.filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }.maxByOrNull { it.length() }
     val image = files.filter { it.extension.lowercase() in IMAGE_EXTENSIONS }.maxByOrNull { it.length() }
+    val web = if (done && entry?.type.equals("Web", true)) remember(done) { WebWallpaper.entryFile(id) } else null
 
     var showUi by remember { mutableStateOf(true) }
 
@@ -106,6 +108,7 @@ fun PreviewScreen(id: Long, onBack: () -> Unit) {
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { showUi = !showUi },
     ) {
         when {
+            web != null -> WebPreview(web, Modifier.fillMaxSize())
             video != null -> VideoSurface(video, Modifier.fillMaxSize())
             image != null -> AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else -> AsyncImage(model = previewUrl, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -148,6 +151,11 @@ fun PreviewScreen(id: Long, onBack: () -> Unit) {
                         )
                     }
                     when {
+                        web != null -> Button(onClick = { setWebWallpaper(ctx, web) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
+                            Text(stringResource(R.string.set_web_wallpaper))
+                        }
+
                         video != null -> Button(onClick = { setVideoWallpaper(ctx, video) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
                             Text(stringResource(R.string.set_live_wallpaper))
@@ -211,6 +219,35 @@ fun VideoSurface(file: File, modifier: Modifier = Modifier) {
         factory = { SurfaceView(it).also { sv -> player.setVideoSurfaceView(sv) } },
         modifier = modifier,
     )
+}
+
+/** Renders a Web-type wallpaper's page in a WebView (same setup the web live wallpaper uses). */
+@Composable
+fun WebPreview(file: File, modifier: Modifier = Modifier) {
+    AndroidView(
+        factory = { c ->
+            android.webkit.WebView(c).also { w ->
+                WebWallpaper.configure(w)
+                w.loadUrl(Uri.fromFile(file).toString())
+            }
+        },
+        onRelease = { it.destroy() },
+        modifier = modifier,
+    )
+}
+
+fun setWebWallpaper(ctx: Context, page: File) {
+    val intent = WebWallpaper.prepare(ctx, page)
+    try {
+        ctx.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        try {
+            ctx.startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+            Toast.makeText(ctx, ctx.getString(R.string.pick_in_list), Toast.LENGTH_LONG).show()
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(ctx, ctx.getString(R.string.live_unsupported), Toast.LENGTH_LONG).show()
+        }
+    }
 }
 
 fun setVideoWallpaper(ctx: Context, video: File) {

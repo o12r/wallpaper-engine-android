@@ -40,6 +40,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -180,8 +182,19 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                                 Icon(Icons.Filled.Close, stringResource(R.string.cancel_download))
                             }
 
-                            else -> IconButton(onClick = { DownloadManager.delete(e.id) }) {
-                                Icon(Icons.Filled.Delete, stringResource(R.string.delete))
+                            else -> {
+                                if (e.status is DownloadStatus.Done) {
+                                    val ctx = LocalContext.current
+                                    IconButton(onClick = { ExternalOpen.open(ctx, e.id) }) {
+                                        Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.open_with))
+                                    }
+                                    IconButton(onClick = { ExternalOpen.share(ctx, e.id) }) {
+                                        Icon(Icons.Filled.Share, stringResource(R.string.share))
+                                    }
+                                }
+                                IconButton(onClick = { DownloadManager.delete(e.id) }) {
+                                    Icon(Icons.Filled.Delete, stringResource(R.string.delete))
+                                }
                             }
                         }
                     }

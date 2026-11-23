@@ -68,6 +68,20 @@
                 android:resource="@xml/video_wallpaper" />
         </service>
 
+        <!-- EXPERIMENTAL: renders Web-type wallpapers in a WebView. -->
+        <service
+            android:name=".wallpaper.WebWallpaperService"
+            android:exported="true"
+            android:label="@string/web_wallpaper_name"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/web_wallpaper" />
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"
