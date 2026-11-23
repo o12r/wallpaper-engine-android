@@ -22,6 +22,8 @@
         android:name="android.software.live_wallpaper"
         android:required="false" />
 
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application
         android:name=".App"
         android:allowBackup="false"
@@ -66,6 +68,17 @@
             <meta-data
                 android:name="android.service.wallpaper"
                 android:resource="@xml/video_wallpaper" />
+        </service>
+
+        <!-- Lets music-reactive wallpapers read the active media session (user grants notification access). -->
+        <service
+            android:name=".wallpaper.MediaListenerService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
         </service>
 
         <!-- EXPERIMENTAL: renders Web-type wallpapers in a WebView. -->

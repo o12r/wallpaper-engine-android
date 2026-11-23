@@ -51,6 +51,7 @@ import com.weworkshop.app.ThemeMode
 import com.weworkshop.app.steam.SteamSession
 import com.weworkshop.app.steam.Workshop
 import com.weworkshop.app.update.UpdateChecker
+import com.weworkshop.app.wallpaper.MusicBridge
 import com.weworkshop.app.wallpaper.WallpaperSettingsActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,6 +153,53 @@ fun SettingsScreen(onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+
+            Section(stringResource(R.string.settings_music)) {
+                val on by AppSettings.musicReactive.collectAsStateWithLifecycle()
+                var tick by remember { mutableStateOf(0) }
+                val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+                androidx.compose.runtime.DisposableEffect(lifecycle) {
+                    val o = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) tick++ }
+                    lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o) }
+                }
+                val audioOk = remember(tick) { MusicBridge.hasAudioPermission(ctx) }
+                val notifOk = remember(tick) { MusicBridge.hasNotificationAccess(ctx) }
+                val audioLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+                ) { tick++ }
+                Row(
+                    Modifier.fillMaxWidth().clickable { AppSettings.setMusicReactive(!on) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.settings_music_enable), Modifier.weight(1f))
+                    androidx.compose.material3.Switch(checked = on, onCheckedChange = { AppSettings.setMusicReactive(it) })
+                }
+                Text(
+                    stringResource(R.string.settings_music_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (on) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(if (audioOk) R.string.music_audio_ok else R.string.music_audio_missing),
+                            Modifier.weight(1f),
+                        )
+                        if (!audioOk) TextButton(onClick = { audioLauncher.launch(android.Manifest.permission.RECORD_AUDIO) }) {
+                            Text(stringResource(R.string.music_grant))
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(if (notifOk) R.string.music_media_ok else R.string.music_media_missing),
+                            Modifier.weight(1f),
+                        )
+                        if (!notifOk) TextButton(onClick = {
+                            ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        }) { Text(stringResource(R.string.music_grant)) }
+                    }
+                }
             }
 
             Card(Modifier.fillMaxWidth()) {

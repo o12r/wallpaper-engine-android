@@ -60,6 +60,7 @@ object AppSettings {
         _filtersExpanded.value = prefs.getBoolean("filters_expanded", true)
         _concurrentDownloads.value = prefs.getInt("concurrent_downloads", 3).coerceIn(1, 5)
         _chunkThreads.value = prefs.getInt("chunk_threads", 8).coerceIn(2, 32)
+        _musicReactive.value = prefs.getBoolean("music_reactive", false)
         _searchHistory.value = runCatching {
             val a = org.json.JSONArray(prefs.getString("search_history", "[]"))
             List(a.length()) { a.getString(it) }.take(MAX_SEARCH_HISTORY)
@@ -67,6 +68,15 @@ object AppSettings {
     }
 
     const val MAX_SEARCH_HISTORY = 20
+
+    private val _musicReactive = MutableStateFlow(false)
+    /** Master switch for audio spectrum + media info in web wallpapers (default off). */
+    val musicReactive: StateFlow<Boolean> = _musicReactive.asStateFlow()
+
+    fun setMusicReactive(on: Boolean) {
+        _musicReactive.value = on
+        prefs.edit().putBoolean("music_reactive", on).apply()
+    }
 
     private fun saveHistory(list: List<String>) {
         _searchHistory.value = list

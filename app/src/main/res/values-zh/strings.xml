@@ -246,4 +246,12 @@
     <string name="app_note">应用类壁纸依赖电脑端运行环境，手机上无法使用。</string>
     <string name="web_wallpaper_name">WE 网页壁纸（实验性）</string>
     <string name="web_wallpaper_desc">用 WebView 渲染已下载的 Wallpaper Engine 网页壁纸。</string>
+    <string name="settings_music">网页壁纸音乐响应</string>
+    <string name="settings_music_enable">音频频谱与媒体信息</string>
+    <string name="settings_music_desc">向网页壁纸提供 Wallpaper Engine 的音频与媒体信息接口（标题、歌手、封面、进度）。需要麦克风权限（用于读取音频输出频谱）和通知使用权（用于读取正在播放的媒体）。默认关闭。</string>
+    <string name="music_audio_ok">音频频谱：已授权</string>
+    <string name="music_audio_missing">音频频谱：需要授权</string>
+    <string name="music_media_ok">媒体信息：已授权</string>
+    <string name="music_media_missing">媒体信息：需要通知使用权</string>
+    <string name="music_grant">授权</string>
 </resources>

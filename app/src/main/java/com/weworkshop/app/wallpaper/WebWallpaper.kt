@@ -71,6 +71,7 @@ class WebWallpaperService : WallpaperService() {
         private val main = Handler(Looper.getMainLooper())
         private val prefs = WebWallpaper.prefs(this@WebWallpaperService)
         private var web: WebView? = null
+        private var music: WebMusicDriver? = null
         private var loaded: String? = null
         private var w = 0
         private var h = 0
@@ -101,6 +102,7 @@ class WebWallpaperService : WallpaperService() {
                     // Software layer so WebView.draw() can paint into the surface's canvas.
                     it.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                 }
+                music = WebMusicDriver(web!!)
             }
             web?.apply {
                 measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
@@ -115,22 +117,23 @@ class WebWallpaperService : WallpaperService() {
             val f = File(path)
             if (!f.isFile) return
             loaded = path
-            web?.loadUrl(android.net.Uri.fromFile(f).toString())
+            music?.load(f)
         }
 
         override fun onVisibilityChanged(v: Boolean) {
             visible = v
             main.removeCallbacks(frame)
             if (v) {
-                web?.onResume(); web?.resumeTimers()
+                web?.onResume(); web?.resumeTimers(); music?.start()
                 main.post(frame)
             } else {
-                web?.onPause(); web?.pauseTimers()
+                music?.stop(); web?.onPause(); web?.pauseTimers()
             }
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
             visible = false
+            music?.stop()
             main.removeCallbacks(frame)
             super.onSurfaceDestroyed(holder)
         }
@@ -139,6 +142,7 @@ class WebWallpaperService : WallpaperService() {
             visible = false
             main.removeCallbacks(frame)
             prefs.unregisterOnSharedPreferenceChangeListener(this)
+            music?.stop(); music = null
             web?.destroy(); web = null
             super.onDestroy()
         }
