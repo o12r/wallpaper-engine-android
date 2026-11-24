@@ -91,7 +91,16 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.downloads_title)) },
+                title = {
+                    val total = list.sumOf { (it.status as? DownloadStatus.Running)?.speedBps ?: 0L }
+                    Column {
+                        Text(stringResource(R.string.downloads_title))
+                        if (total > 0) Text(
+                            stringResource(R.string.dl_total_speed, formatSpeed(total)),
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
                     if (scan.scanning) {
@@ -146,7 +155,7 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                                 }
 
                                 is DownloadStatus.Running -> {
-                                    Text("${(s.progress * 100).toInt()}%  ${s.message}", maxLines = 1,
+                                    Text("${(s.progress * 100).toInt()}%  ${s.message}" + (if (s.speedBps > 0) "  ·  ${formatSpeed(s.speedBps)}" else ""), maxLines = 1,
                                         overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
                                     LinearProgressIndicator(progress = { s.progress }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
                                 }

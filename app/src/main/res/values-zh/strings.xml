@@ -254,4 +254,5 @@
     <string name="music_media_ok">媒体信息：已授权</string>
     <string name="music_media_missing">媒体信息：需要通知使用权</string>
     <string name="music_grant">授权</string>
+    <string name="dl_total_speed">总速度 %1$s</string>
 </resources>

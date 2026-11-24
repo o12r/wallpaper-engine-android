@@ -52,6 +52,7 @@ import com.weworkshop.app.steam.SteamSession
 import com.weworkshop.app.steam.Workshop
 import com.weworkshop.app.update.UpdateChecker
 import com.weworkshop.app.wallpaper.MusicBridge
+import com.weworkshop.app.wallpaper.WebWallpaper
 import com.weworkshop.app.wallpaper.WallpaperSettingsActivity
 
 @OptIn(ExperimentalMaterial3Api::class)

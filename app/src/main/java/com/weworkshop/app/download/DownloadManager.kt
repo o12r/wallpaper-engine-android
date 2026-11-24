@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 sealed interface DownloadStatus {
     data object Queued : DownloadStatus
-    data class Running(val progress: Float, val message: String) : DownloadStatus
+    data class Running(val progress: Float, val message: String, val speedBps: Long = 0) : DownloadStatus
     data class Done(val exportedTo: String?) : DownloadStatus
     data class Failed(val message: String) : DownloadStatus
 }
@@ -278,6 +278,9 @@ object DownloadManager {
 
         val lastProgress = AtomicLong(SystemClock.elapsedRealtime())
         var failure: Throwable? = null
+        // Network speed: compressed bytes received, sampled once a second by the watchdog loop below.
+        val netBytes = AtomicLong()
+        val speed = AtomicLong()
 
         DepotDownloader(
             SteamSession.client,
@@ -295,12 +298,12 @@ object DownloadManager {
                 override fun onStatusUpdate(message: String) {
                     lastProgress.set(SystemClock.elapsedRealtime())
                     val p = (_entries.value[id]?.status as? DownloadStatus.Running)?.progress ?: 0f
-                    setStatus(id, DownloadStatus.Running(p, message.substringAfterLast('/').take(60)))
+                    setStatus(id, DownloadStatus.Running(p, message.substringAfterLast('/').take(60), speed.get()))
                 }
 
                 override fun onFileCompleted(depotId: Int, fileName: String, depotPercentComplete: Float) {
                     lastProgress.set(SystemClock.elapsedRealtime())
-                    setStatus(id, DownloadStatus.Running(depotPercentComplete, fileName.substringAfterLast('/')))
+                    setStatus(id, DownloadStatus.Running(depotPercentComplete, fileName.substringAfterLast('/'), speed.get()))
                 }
 
                 override fun onChunkCompleted(
@@ -310,7 +313,8 @@ object DownloadManager {
                     uncompressedBytes: Long,
                 ) {
                     lastProgress.set(SystemClock.elapsedRealtime())
-                    setStatus(id, DownloadStatus.Running(depotPercentComplete, App.str(R.string.dl_downloading)))
+                    netBytes.addAndGet(compressedBytes)
+                    setStatus(id, DownloadStatus.Running(depotPercentComplete, App.str(R.string.dl_downloading), speed.get()))
                 }
             })
             dd.add(PubFileItem(appId = SteamSession.WE_APP_ID, pubFile = id, installDirectory = dir.absolutePath))
@@ -319,8 +323,19 @@ object DownloadManager {
             coroutineScope {
                 val done = async { dd.getCompletion().await() }
                 var dumped = false
+                var lastBytes = 0L
+                var lastTick = SystemClock.elapsedRealtime()
                 while (!done.isCompleted) {
                     delay(1000)
+                    run {
+                        val now = SystemClock.elapsedRealtime()
+                        val b = netBytes.get()
+                        val inst = (b - lastBytes) * 1000 / (now - lastTick).coerceAtLeast(1)
+                        lastBytes = b; lastTick = now
+                        val sp = if (speed.get() == 0L) inst else (speed.get() * 6 + inst * 4) / 10
+                        speed.set(sp)
+                        (_entries.value[id]?.status as? DownloadStatus.Running)?.let { setStatus(id, it.copy(speedBps = sp)) }
+                    }
                     if (SteamSession.sessionId != session || SteamSession.state.value !is SteamSession.State.LoggedIn) {
                         done.cancel()
                         throw RetryableException(App.str(R.string.dl_disconnected))

@@ -1,9 +1,9 @@
 package com.weworkshop.app.wallpaper
 
 import android.graphics.Color
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.webkit.MimeTypeMap
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -12,16 +12,21 @@ import com.weworkshop.app.AppSettings
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.InputStream
+import java.io.RandomAccessFile
 
 /**
- * Feeds a web wallpaper the same JavaScript API Wallpaper Engine's desktop runtime provides:
- * wallpaperRegisterAudioListener (128 floats, 64 left + 64 right) and the
- * wallpaperRegisterMedia{Status,Properties,Thumbnail,Playback,Timeline}Listener family.
- * The shim is injected into the page's HTML before its own scripts run.
+ * Loads a web wallpaper and feeds it the JavaScript API Wallpaper Engine's desktop runtime provides:
+ * wallpaperRegisterAudioListener (128 floats, 64 left + 64 right), the wallpaperRegisterMedia*Listener family,
+ * and wallpaperPropertyListener.applyUserProperties with the defaults from project.json.
+ *
+ * The page is served from a virtual https origin ([HOST]) backed by the wallpaper's folder instead of file://,
+ * because file:// pages cannot fetch() / XHR their own assets ("Failed to fetch"). The shim is injected into the page's HTML before its own scripts run.
  */
 class WebMusicDriver(private val web: WebView) {
     private val main = Handler(Looper.getMainLooper())
-    private var pageUrl: String? = null
+    private var root: File? = null
+    private var properties: String? = null
     private var running = false
     private var lastVersion = -1
     private var lastSpectrum: FloatArray? = null
@@ -31,27 +36,31 @@ class WebMusicDriver(private val web: WebView) {
     init {
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                if (!request.isForMainFrame || request.url.toString() != pageUrl) return null
-                val f = File(request.url.path ?: return null)
-                if (!f.isFile) return null
-                return try {
-                    val html = injectInto(f.readText(Charsets.UTF_8))
-                    WebResourceResponse("text/html", "utf-8", ByteArrayInputStream(html.toByteArray(Charsets.UTF_8)))
-                } catch (_: Throwable) { null }
+                val r = root ?: return null
+                if (request.url.host != HOST || request.method != "GET") return null
+                return serve(r, request.url.path.orEmpty(), request.requestHeaders["Range"])
             }
 
-            // Fallback for pages the interception didn't cover; the shim is idempotent.
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
-                view.evaluateJavascript(SHIM, null)
                 lastVersion = -1; wasEnabled = null; lastSpectrum = null
+            }
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                val p = properties ?: return
+                val call = "window.__weProps&&__weProps($p)"
+                view.evaluateJavascript(call, null)
+                // The page often registers its listener late / after assets load.
+                for (d in longArrayOf(1000, 3000)) main.postDelayed({ view.evaluateJavascript(call, null) }, d)
             }
         }
     }
 
     fun load(file: File) {
-        val url = Uri.fromFile(file).toString()
-        pageUrl = url
-        web.loadUrl(url)
+        val r = rootOf(file)
+        root = r
+        properties = readProperties(r)
+        val rel = file.relativeTo(r).path.replace(File.separatorChar, '/').split('/').joinToString("/") { android.net.Uri.encode(it) }
+        web.loadUrl("https://$HOST/$rel")
     }
 
     fun start() {
@@ -123,8 +132,11 @@ class WebMusicDriver(private val web: WebView) {
     }
 
     companion object {
+        const val HOST = "we.local"
+
         /** window.__weAudio(arr) / __weMedia(kind, obj) are called natively; pages register via wallpaperRegister*Listener. */
         const val SHIM = """(function(){if(window.__weShim)return;window.__weShim=true;
+window.__weProps=function(p){try{var l=window.wallpaperPropertyListener;if(l&&l.applyUserProperties)l.applyUserProperties(p)}catch(e){}};
 var L={audio:[],status:[],properties:[],thumbnail:[],playback:[],timeline:[]},last={};
 function reg(k,cb){if(typeof cb!=='function')return;L[k].push(cb);if(last[k]!==undefined){try{cb(last[k])}catch(e){}}}
 window.wallpaperRegisterAudioListener=function(cb){reg('audio',cb)};
@@ -142,11 +154,107 @@ window.__weMedia('status',{enabled:false});
         private val HEAD = Regex("<head[^>]*>", RegexOption.IGNORE_CASE)
         private val HTML = Regex("<html[^>]*>", RegexOption.IGNORE_CASE)
 
-        /** Puts the shim right after <head> (or <html>) so it runs before any page script. */
+        /** Puts the shim right after <head> (or <html>) so they apply before any page script. */
         fun injectInto(html: String): String {
+            val clean = html
             val tag = "<script>$SHIM</script>"
-            val m = HEAD.find(html) ?: HTML.find(html)
-            return if (m != null) html.substring(0, m.range.last + 1) + tag + html.substring(m.range.last + 1) else tag + html
+            val m = HEAD.find(clean) ?: HTML.find(clean)
+            return if (m != null) clean.substring(0, m.range.last + 1) + tag + clean.substring(m.range.last + 1) else tag + clean
+        }
+
+        /** The wallpaper's folder: the nearest ancestor holding project.json, else the page's own folder. */
+        fun rootOf(page: File): File {
+            var d = page.parentFile
+            var i = 0
+            while (d != null && i < 8) {
+                if (File(d, "project.json").isFile) return d
+                d = d.parentFile; i++
+            }
+            return page.parentFile ?: page
+        }
+
+        /** project.json's general.properties, as the object WE passes to applyUserProperties. */
+        fun readProperties(root: File): String? = runCatching {
+            val j = JSONObject(File(root, "project.json").readText().trimStart('\uFEFF'))
+            val props = j.optJSONObject("general")?.optJSONObject("properties") ?: return null
+            val out = JSONObject()
+            for (k in props.keys()) {
+                val p = props.optJSONObject(k) ?: continue
+                if (p.has("value")) out.put(k, JSONObject().put("value", p.get("value")).put("type", p.optString("type")).put("text", p.optString("text")))
+            }
+            out.toString()
+        }.getOrNull()
+
+        private val MIME = mapOf(
+            "html" to "text/html", "htm" to "text/html", "js" to "text/javascript", "mjs" to "text/javascript",
+            "css" to "text/css", "json" to "application/json", "wasm" to "application/wasm", "svg" to "image/svg+xml",
+            "woff" to "font/woff", "woff2" to "font/woff2", "ttf" to "font/ttf", "otf" to "font/otf",
+            "mp4" to "video/mp4", "webm" to "video/webm", "ogg" to "audio/ogg", "mp3" to "audio/mpeg", "wav" to "audio/wav",
+            "png" to "image/png", "jpg" to "image/jpeg", "jpeg" to "image/jpeg", "gif" to "image/gif", "webp" to "image/webp",
+            "txt" to "text/plain", "xml" to "text/xml", "glsl" to "text/plain", "frag" to "text/plain", "vert" to "text/plain",
+        )
+
+        private fun mimeOf(f: File): String {
+            val ext = f.extension.lowercase()
+            return MIME[ext] ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+        }
+
+        private fun notFound() = WebResourceResponse(
+            "text/plain", "utf-8", 404, "Not Found", mapOf("Access-Control-Allow-Origin" to "*"),
+            ByteArrayInputStream(ByteArray(0)),
+        )
+
+        /** Serves a file under [root] for the virtual origin, with CORS and Range support (needed by <video> / <audio>). */
+        fun serve(root: File, urlPath: String, range: String?): WebResourceResponse {
+            val rel = urlPath.trimStart('/')
+            val f = runCatching { File(root, rel).canonicalFile }.getOrNull()
+            val base = runCatching { root.canonicalFile }.getOrNull()
+            if (f == null || base == null || !f.path.startsWith(base.path) || !f.isFile) return notFound()
+            val mime = mimeOf(f)
+            val text = mime.startsWith("text/") || mime == "application/json"
+            val headers = mutableMapOf("Access-Control-Allow-Origin" to "*", "Accept-Ranges" to "bytes", "Cache-Control" to "no-cache")
+            val enc = if (text) "utf-8" else null
+            return try {
+                if (mime == "text/html") {
+                    val bytes = injectInto(f.readText(Charsets.UTF_8)).toByteArray(Charsets.UTF_8)
+                    return WebResourceResponse(mime, "utf-8", 200, "OK", headers, ByteArrayInputStream(bytes))
+                }
+                val len = f.length()
+                val m = range?.let { Regex("bytes=(\\d*)-(\\d*)").matchEntire(it.trim()) }
+                if (m != null && len > 0) {
+                    val a = m.groupValues[1]; val b = m.groupValues[2]
+                    val start = if (a.isEmpty()) (len - (b.toLongOrNull() ?: 0)).coerceAtLeast(0) else a.toLong()
+                    val end = if (a.isEmpty() || b.isEmpty()) len - 1 else b.toLong().coerceAtMost(len - 1)
+                    if (start > end || start >= len) return WebResourceResponse(
+                        mime, enc, 416, "Range Not Satisfiable", headers + ("Content-Range" to "bytes */$len"), ByteArrayInputStream(ByteArray(0)),
+                    )
+                    headers["Content-Range"] = "bytes $start-$end/$len"
+                    headers["Content-Length"] = (end - start + 1).toString()
+                    WebResourceResponse(mime, enc, 206, "Partial Content", headers, slice(f, start, end - start + 1))
+                } else {
+                    headers["Content-Length"] = len.toString()
+                    WebResourceResponse(mime, enc, 200, "OK", headers, f.inputStream())
+                }
+            } catch (_: Throwable) { notFound() }
+        }
+
+        private fun slice(f: File, start: Long, length: Long): InputStream {
+            val raf = RandomAccessFile(f, "r")
+            raf.seek(start)
+            return object : InputStream() {
+                var left = length
+                override fun read(): Int {
+                    if (left <= 0) return -1
+                    left--; return raf.read()
+                }
+                override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (left <= 0) return -1
+                    val n = raf.read(b, off, minOf(len.toLong(), left).toInt())
+                    if (n > 0) left -= n
+                    return n
+                }
+                override fun close() = raf.close()
+            }
         }
     }
 }

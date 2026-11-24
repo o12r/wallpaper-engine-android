@@ -67,7 +67,10 @@ import com.weworkshop.app.download.DownloadManager
 import com.weworkshop.app.download.DownloadStatus
 import com.weworkshop.app.steam.Workshop
 import com.weworkshop.app.wallpaper.VideoWallpaperService
-import com.weworkshop.app.wallpaper.WebMusicDriver
+import com.weworkshop.app.wallpaper.VirtualWebView
+import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.FitScreen
+import androidx.compose.material.icons.filled.ScreenRotation
 import com.weworkshop.app.wallpaper.WebWallpaper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -222,29 +225,30 @@ fun VideoSurface(file: File, modifier: Modifier = Modifier) {
     )
 }
 
-/** Renders a Web-type wallpaper's page in a WebView (same setup the web live wallpaper uses). */
+/** Renders a Web-type wallpaper in a plain WebView at the phone's own viewport. */
 @Composable
 fun WebPreview(file: File, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    val driver = remember { arrayOfNulls<WebMusicDriver>(1) }
-    AndroidView(
-        factory = { c ->
-            android.webkit.WebView(c).also { w ->
-                WebWallpaper.configure(w)
-                val d = WebMusicDriver(w)
-                driver[0] = d
-                d.load(file)
-                d.start()
-            }
-        },
-        onRelease = { driver[0]?.stop(); it.destroy() },
-        modifier = modifier,
-    )
+    val holder = remember { arrayOfNulls<VirtualWebView>(1) }
+    Box(modifier) {
+        AndroidView(
+            factory = { c ->
+                VirtualWebView(c).also { v ->
+                    holder[0] = v
+                    v.music.load(file)
+                    v.music.start()
+                }
+            },
+            onRelease = { it.music.stop(); it.web.destroy() },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
     androidx.compose.runtime.DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
             when (e) {
-                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> driver[0]?.start()
-                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> driver[0]?.stop()
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> holder[0]?.music?.start()
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> holder[0]?.music?.stop()
                 else -> {}
             }
         }

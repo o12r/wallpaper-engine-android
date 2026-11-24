@@ -526,6 +526,12 @@ fun ageLabel(tag: String): String = when (tag) {
     else -> tag
 }
 
+fun formatSpeed(bps: Long): String = when {
+    bps < 1024 -> "$bps B/s"
+    bps < 1024 * 1024 -> "%.0f KB/s".format(bps / 1024.0)
+    else -> "%.1f MB/s".format(bps / 1024.0 / 1024)
+}
+
 fun formatSize(bytes: Long): String = when {
     bytes <= 0 -> "—"
     bytes < 1024 * 1024 -> "%.0f KB".format(bytes / 1024.0)

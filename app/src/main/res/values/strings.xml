@@ -267,4 +267,5 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PCâ€
     <string name="music_media_ok">Media info: allowed</string>
     <string name="music_media_missing">Media info: notification access needed</string>
     <string name="music_grant">Grant</string>
+    <string name="dl_total_speed">Total %1$s</string>
 </resources>

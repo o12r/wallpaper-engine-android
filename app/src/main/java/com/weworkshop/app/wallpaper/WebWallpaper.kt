@@ -1,19 +1,26 @@
 package com.weworkshop.app.wallpaper
 
 import android.annotation.SuppressLint
+import android.app.Presentation
 import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
 import android.os.Handler
 import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebView
+import android.widget.FrameLayout
 import com.weworkshop.app.download.DownloadManager
 import org.json.JSONObject
 import java.io.File
@@ -41,6 +48,9 @@ object WebWallpaper {
     @Suppress("DEPRECATION")
     fun configure(w: WebView) {
         w.setBackgroundColor(Color.BLACK)
+        w.isVerticalScrollBarEnabled = false
+        w.isHorizontalScrollBarEnabled = false
+        w.overScrollMode = View.OVER_SCROLL_NEVER
         w.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -48,6 +58,8 @@ object WebWallpaper {
             allowFileAccessFromFileURLs = true
             allowUniversalAccessFromFileURLs = true
             mediaPlaybackRequiresUserGesture = false
+            setSupportZoom(false)
+            builtInZoomControls = false
         }
     }
 
@@ -60,9 +72,23 @@ object WebWallpaper {
     }
 }
 
+/** Preview container: a plain GPU-composited WebView that runs the page at the phone's own viewport, like a browser. */
+class VirtualWebView(context: Context) : FrameLayout(context) {
+    val web = WebView(context)
+    val music: WebMusicDriver
+
+    init {
+        setBackgroundColor(Color.BLACK)
+        WebWallpaper.configure(web)
+        addView(web, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        music = WebMusicDriver(web)
+    }
+}
+
 /**
- * EXPERIMENTAL live wallpaper that renders a Web wallpaper's page in an off-screen WebView and
- * paints it onto the wallpaper surface about 30 times a second.
+ * EXPERIMENTAL live wallpaper for Web wallpapers. The page runs in a WebView inside a Presentation window on a
+ * private VirtualDisplay whose output surface is the wallpaper surface itself, so the WebView is composited by
+ * the GPU like in an app (no CPU copy). If that is not possible it falls back to software drawing.
  */
 class WebWallpaperService : WallpaperService() {
     override fun onCreateEngine(): Engine = WebEngine()
@@ -72,6 +98,9 @@ class WebWallpaperService : WallpaperService() {
         private val prefs = WebWallpaper.prefs(this@WebWallpaperService)
         private var web: WebView? = null
         private var music: WebMusicDriver? = null
+        private var vd: VirtualDisplay? = null
+        private var presentation: Presentation? = null
+        private var software = false
         private var loaded: String? = null
         private var w = 0
         private var h = 0
@@ -79,8 +108,8 @@ class WebWallpaperService : WallpaperService() {
 
         private val frame = object : Runnable {
             override fun run() {
-                draw()
-                if (visible) main.postDelayed(this, 33)
+                drawSoftware()
+                if (visible && software) main.postDelayed(this, 33)
             }
         }
 
@@ -95,20 +124,57 @@ class WebWallpaperService : WallpaperService() {
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
+            if (web != null && width == w && height == h) return
             w = width; h = height
-            if (web == null) {
-                web = WebView(applicationContext).also {
-                    WebWallpaper.configure(it)
-                    // Software layer so WebView.draw() can paint into the surface's canvas.
-                    it.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-                }
-                music = WebMusicDriver(web!!)
-            }
-            web?.apply {
-                measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
-                layout(0, 0, w, h)
-            }
+            teardown()
+            loaded = null
+            if (!buildHardware(holder)) buildSoftware()
             load()
+            if (visible) applyVisible(true)
+        }
+
+        private fun buildHardware(holder: SurfaceHolder): Boolean = try {
+            val dpi = resources.displayMetrics.densityDpi
+            val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            val d = dm.createVirtualDisplay(
+                "we-web", w, h, dpi, holder.surface,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY or DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
+            ) ?: throw IllegalStateException("no virtual display")
+            vd = d
+            val view = WebView(createDisplayContext(d.display)).also { WebWallpaper.configure(it) }
+            val pres = Presentation(this@WebWallpaperService, d.display)
+            pres.setContentView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            pres.window?.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+            pres.show()
+            presentation = pres
+            web = view
+            music = WebMusicDriver(view)
+            software = false
+            true
+        } catch (t: Throwable) {
+            Log.w("WebWallpaper", "virtual display failed, falling back to software", t)
+            teardown()
+            false
+        }
+
+        private fun buildSoftware() {
+            web = WebView(applicationContext).also {
+                WebWallpaper.configure(it)
+                it.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+                it.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+                it.layout(0, 0, w, h)
+            }
+            music = WebMusicDriver(web!!)
+            software = true
+        }
+
+        private fun teardown() {
+            main.removeCallbacks(frame)
+            music?.stop(); music = null
+            try { presentation?.dismiss() } catch (_: Throwable) {}
+            presentation = null
+            web?.destroy(); web = null
+            vd?.release(); vd = null
         }
 
         private fun load() {
@@ -120,34 +186,37 @@ class WebWallpaperService : WallpaperService() {
             music?.load(f)
         }
 
-        override fun onVisibilityChanged(v: Boolean) {
-            visible = v
+        private fun applyVisible(v: Boolean) {
             main.removeCallbacks(frame)
             if (v) {
                 web?.onResume(); web?.resumeTimers(); music?.start()
-                main.post(frame)
+                if (software) main.post(frame)
             } else {
                 music?.stop(); web?.onPause(); web?.pauseTimers()
             }
         }
 
+        override fun onVisibilityChanged(v: Boolean) {
+            visible = v
+            applyVisible(v)
+        }
+
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
             visible = false
-            music?.stop()
-            main.removeCallbacks(frame)
+            teardown()
+            w = 0; h = 0
             super.onSurfaceDestroyed(holder)
         }
 
         override fun onDestroy() {
             visible = false
-            main.removeCallbacks(frame)
             prefs.unregisterOnSharedPreferenceChangeListener(this)
-            music?.stop(); music = null
-            web?.destroy(); web = null
+            teardown()
             super.onDestroy()
         }
 
-        private fun draw() {
+        private fun drawSoftware() {
+            if (!software) return
             val view = web ?: return
             val holder = surfaceHolder
             val canvas = try { holder.lockCanvas() } catch (t: Throwable) { null } ?: return

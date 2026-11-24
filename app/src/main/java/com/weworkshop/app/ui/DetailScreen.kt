@@ -265,7 +265,7 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                 }
 
                 is DownloadStatus.Running -> {
-                    Text("${(status.progress * 100).toInt()}%  ${status.message}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${(status.progress * 100).toInt()}%  ${status.message}" + (if (status.speedBps > 0) "  ·  ${formatSpeed(status.speedBps)}" else ""), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     LinearProgressIndicator(progress = { status.progress }, modifier = Modifier.fillMaxWidth())
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { DownloadManager.cancel(item.id) }) { Text(stringResource(R.string.cancel_download)) }
