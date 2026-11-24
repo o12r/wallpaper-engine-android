@@ -29,6 +29,7 @@ import java.io.File
 object WebWallpaper {
     private const val PREFS = "web_wallpaper"
     const val KEY_PATH = "page_path"
+    const val KEY_PRESET = "preset_dir"
 
     fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -43,6 +44,24 @@ object WebWallpaper {
         return html.firstOrNull { it.name.equals("index.html", true) }
             ?: html.minByOrNull { it.absolutePath.length }
     }
+
+    /**
+     * What to run for [id]: its own page, or (for a preset) the page of the wallpaper it depends on plus the
+     * preset's folder. Null if there is nothing to run (e.g. the dependency is not downloaded).
+     */
+    fun resolve(id: Long, type: String? = null): Pair<File, File?>? {
+        // A preset's project.json has no usable "type", so decide by its "dependency" instead.
+        val dep = dependencyId(id)
+        if (dep == null) return if (type.equals("Web", true)) entryFile(id)?.let { it to null } else null
+        val page = entryFile(dep) ?: return null
+        return page to DownloadManager.contentDir(id)
+    }
+
+    /** Workshop id of the wallpaper a preset depends on (project.json "dependency"), or null. */
+    fun dependencyId(id: Long): Long? = runCatching {
+        JSONObject(File(DownloadManager.contentDir(id), "project.json").readText().trimStart('﻿'))
+            .optString("dependency").toLongOrNull()
+    }.getOrNull()
 
     @SuppressLint("SetJavaScriptEnabled")
     @Suppress("DEPRECATION")
@@ -65,8 +84,8 @@ object WebWallpaper {
 
     fun component(ctx: Context) = ComponentName(ctx, WebWallpaperService::class.java)
 
-    fun prepare(ctx: Context, page: File): Intent {
-        prefs(ctx).edit().putString(KEY_PATH, page.absolutePath).commit()
+    fun prepare(ctx: Context, page: File, preset: File? = null): Intent {
+        prefs(ctx).edit().putString(KEY_PRESET, preset?.absolutePath).putString(KEY_PATH, page.absolutePath).commit()
         return Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
             .putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component(ctx))
     }
@@ -119,7 +138,7 @@ class WebWallpaperService : WallpaperService() {
         }
 
         override fun onSharedPreferenceChanged(p: SharedPreferences?, key: String?) {
-            if (key == WebWallpaper.KEY_PATH) main.post { load() }
+            if (key == WebWallpaper.KEY_PATH || key == WebWallpaper.KEY_PRESET) main.post { load() }
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -179,11 +198,12 @@ class WebWallpaperService : WallpaperService() {
 
         private fun load() {
             val path = prefs.getString(WebWallpaper.KEY_PATH, null) ?: return
-            if (path == loaded) return
+            val preset = prefs.getString(WebWallpaper.KEY_PRESET, null)
+            if ("$path|$preset" == loaded) return
             val f = File(path)
             if (!f.isFile) return
-            loaded = path
-            music?.load(f)
+            loaded = "$path|$preset"
+            music?.load(f, preset?.let(::File))
         }
 
         private fun applyVisible(v: Boolean) {

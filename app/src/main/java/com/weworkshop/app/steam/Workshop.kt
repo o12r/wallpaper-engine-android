@@ -111,6 +111,7 @@ object Workshop {
         allowedAges: Set<String>,
         cursor: String?,
         perPage: Int = 30,
+        includePresets: Boolean = true,
     ): WorkshopPage {
         SteamSession.awaitLoggedIn()
         val req = CPublishedFile_QueryFiles_Request.newBuilder().apply {
@@ -130,6 +131,7 @@ object Workshop {
             resolutionTag?.let { addRequiredtags(it) }
             matchAllTags = true
             AGE_TAGS.filter { it !in allowedAges }.forEach { addExcludedtags(it) }
+            if (!includePresets && typeTag == null) addExcludedtags("Preset")
             returnTags = true
             returnVoteData = true
             returnShortDescription = true

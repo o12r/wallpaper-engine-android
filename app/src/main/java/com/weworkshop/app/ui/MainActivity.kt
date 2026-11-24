@@ -25,9 +25,19 @@ class MainActivity : ComponentActivity() {
     private val notifPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
+    // The capture grant dies with the process (app update, reboot, force stop), so ask again on the next start.
+    private val captureConsent =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+            val d = r.data
+            if (r.resultCode == RESULT_OK && d != null) {
+                com.weworkshop.app.wallpaper.AudioCaptureService.start(applicationContext, r.resultCode, d)
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        promptAudioCapture()
         if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         setContent {
             AppTheme {
@@ -36,6 +46,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun promptAudioCapture() {
+        val s = com.weworkshop.app.wallpaper.AudioCaptureService
+        if (s.prompted || s.active.value) return
+        if (!com.weworkshop.app.AppSettings.musicReactive.value) return
+        if (!com.weworkshop.app.wallpaper.MusicBridge.hasAudioPermission(this)) return
+        s.prompted = true
+        captureConsent.launch(s.requestIntent(this))
     }
 }
 
@@ -88,6 +107,7 @@ private fun Root() {
                 onBack = { nav.popBackStack() },
                 onDownloads = { nav.navigate("downloads") },
                 onPreview = { nav.navigate("preview/$it") },
+                onOpenItem = { nav.navigate("detail/$it") },
                 onBrowseTag = { tag ->
                     BrowseRequests.tag.value = tag
                     nav.popBackStack("browse", inclusive = false)

@@ -106,6 +106,13 @@
     <string name="set_live_wallpaper">设为动态壁纸</string>
     <string name="set_static_wallpaper">设为静态壁纸</string>
     <string name="scene_note">场景类壁纸（scene.pkg）需要 Wallpaper Engine 官方安卓版或其它兼容播放器打开，文件已保存在上面的目录中。</string>
+    <string name="preset_note">这是预设：它只包含参数和一张图片，真正的壁纸是创意工坊项目 %1$s。请先下载那个壁纸；本条目只能设为静态图片。</string>
+    <string name="preset_open">打开壁纸 %1$s</string>
+    <string name="filter_show_presets">显示预设</string>
+    <string name="delete_confirm_title">删除下载？</string>
+    <string name="delete_confirm_text">“%1$s”</string>
+    <string name="delete_with_files">删除文件夹和文件</string>
+    <string name="delete_keep_files">仅从列表移除</string>
     <string name="web_note">网页壁纸使用 WebView 渲染。依赖 Wallpaper Engine 电脑端接口的页面可能无法完整显示；设为动态壁纸为实验性功能。</string>
     <string name="redownload">重新下载</string>
     <string name="preview">预览</string>
@@ -248,11 +255,19 @@
     <string name="web_wallpaper_desc">用 WebView 渲染已下载的 Wallpaper Engine 网页壁纸。</string>
     <string name="settings_music">网页壁纸音乐响应</string>
     <string name="settings_music_enable">音频频谱与媒体信息</string>
-    <string name="settings_music_desc">向网页壁纸提供 Wallpaper Engine 的音频与媒体信息接口（标题、歌手、封面、进度）。需要麦克风权限（用于读取音频输出频谱）和通知使用权（用于读取正在播放的媒体）。默认关闭。</string>
+    <string name="settings_music_desc">向网页壁纸提供 Wallpaper Engine 的音频与媒体信息接口（标题、歌手、封面、进度）。频谱通过捕获媒体播放音频得到：需要麦克风权限和一次“录屏”授权弹窗（不会录制屏幕，只分析音频），以及通知使用权（用于读取正在播放的媒体）。默认关闭。</string>
     <string name="music_audio_ok">音频频谱：已授权</string>
     <string name="music_audio_missing">音频频谱：需要授权</string>
     <string name="music_media_ok">媒体信息：已授权</string>
     <string name="music_media_missing">媒体信息：需要通知使用权</string>
     <string name="music_grant">授权</string>
+    <string name="music_audio_off">音频频谱：未采集</string>
+    <string name="music_audio_capturing">音频频谱：采集中</string>
+    <string name="music_start">开始</string>
+    <string name="music_stop">停止</string>
+    <string name="capture_channel">音频采集</string>
+    <string name="capture_title">正在为壁纸采集音频</string>
+    <string name="capture_text">仅分析媒体播放音频，不会录制保存。</string>
+    <string name="capture_stop">停止</string>
     <string name="dl_total_speed">总速度 %1$s</string>
 </resources>

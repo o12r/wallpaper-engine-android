@@ -55,10 +55,11 @@ class WebMusicDriver(private val web: WebView) {
         }
     }
 
-    fun load(file: File) {
+    /** [preset]: a preset's folder (its project.json "preset" values override the wallpaper's defaults). */
+    fun load(file: File, preset: File? = null) {
         val r = rootOf(file)
         root = r
-        properties = readProperties(r)
+        properties = readProperties(r, preset)
         val rel = file.relativeTo(r).path.replace(File.separatorChar, '/').split('/').joinToString("/") { android.net.Uri.encode(it) }
         web.loadUrl("https://$HOST/$rel")
     }
@@ -174,13 +175,21 @@ window.__weMedia('status',{enabled:false});
         }
 
         /** project.json's general.properties, as the object WE passes to applyUserProperties. */
-        fun readProperties(root: File): String? = runCatching {
+        fun readProperties(root: File, preset: File? = null): String? = runCatching {
             val j = JSONObject(File(root, "project.json").readText().trimStart('\uFEFF'))
             val props = j.optJSONObject("general")?.optJSONObject("properties") ?: return null
             val out = JSONObject()
             for (k in props.keys()) {
                 val p = props.optJSONObject(k) ?: continue
                 if (p.has("value")) out.put(k, JSONObject().put("value", p.get("value")).put("type", p.optString("type")).put("text", p.optString("text")))
+            }
+            val over = preset?.let {
+                runCatching { JSONObject(File(it, "project.json").readText().trimStart('\uFEFF')).optJSONObject("preset") }.getOrNull()
+            }
+            if (over != null) for (k in over.keys()) {
+                val v = over.opt(k) ?: continue
+                val cur = out.optJSONObject(k)
+                if (cur != null) cur.put("value", v) else out.put(k, JSONObject().put("value", v).put("type", "").put("text", ""))
             }
             out.toString()
         }.getOrNull()

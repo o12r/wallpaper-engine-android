@@ -75,6 +75,12 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
     val entries by DownloadManager.entries.collectAsStateWithLifecycle()
     val queue by DownloadManager.queue.collectAsStateWithLifecycle()
     val scan = rememberPublicScan()
+    var confirmDelete by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    confirmDelete?.let { (id, title) ->
+        ConfirmDeleteDialog(title, onDismiss = { confirmDelete = null }) { files ->
+            DownloadManager.delete(id, files); confirmDelete = null
+        }
+    }
     // Running first, then the queue in download order, then failed, then finished.
     val list = entries.values.sortedWith(
         compareBy<com.weworkshop.app.download.DownloadEntry> {
@@ -194,14 +200,11 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                             else -> {
                                 if (e.status is DownloadStatus.Done) {
                                     val ctx = LocalContext.current
-                                    IconButton(onClick = { ExternalOpen.open(ctx, e.id) }) {
-                                        Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.open_with))
-                                    }
                                     IconButton(onClick = { ExternalOpen.share(ctx, e.id) }) {
                                         Icon(Icons.Filled.Share, stringResource(R.string.share))
                                     }
                                 }
-                                IconButton(onClick = { DownloadManager.delete(e.id) }) {
+                                IconButton(onClick = { confirmDelete = e.id to e.title }) {
                                     Icon(Icons.Filled.Delete, stringResource(R.string.delete))
                                 }
                             }
@@ -211,6 +214,23 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
             }
         }
     }
+}
+
+/** Asks whether to also delete the files/folder; [onChoose] gets true (delete folder) or false (only remove from list). */
+@Composable
+fun ConfirmDeleteDialog(title: String, onDismiss: () -> Unit, onChoose: (Boolean) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.delete_confirm_title)) },
+        text = { Text(stringResource(R.string.delete_confirm_text, title)) },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = { onChoose(true) }) { Text(stringResource(R.string.delete_with_files)) }
+                TextButton(onClick = { onChoose(false) }) { Text(stringResource(R.string.delete_keep_files)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            }
+        },
+    )
 }
 
 class PublicScan(val scanning: Boolean, val start: () -> Unit)

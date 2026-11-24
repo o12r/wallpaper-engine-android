@@ -112,6 +112,13 @@
     <string name="set_live_wallpaper">Set as live wallpaper</string>
     <string name="set_static_wallpaper">Set as wallpaper</string>
     <string name="scene_note">Scene wallpapers (scene.pkg) need the official Wallpaper Engine Android app or another compatible player. The files are saved in the folder above.</string>
+    <string name="preset_note">This is a preset: it only holds settings and a picture, the actual wallpaper is workshop item %1$s. Download that one first; this entry can only be set as a static picture.</string>
+    <string name="preset_open">Open wallpaper %1$s</string>
+    <string name="filter_show_presets">Show presets</string>
+    <string name="delete_confirm_title">Delete download?</string>
+    <string name="delete_confirm_text">“%1$s”</string>
+    <string name="delete_with_files">Delete folder and files</string>
+    <string name="delete_keep_files">Only remove from list</string>
     <string name="web_note">Web wallpapers are rendered in a WebView. Pages that rely on Wallpaper Engine\u2019s desktop APIs may not work fully; setting one as a live wallpaper is experimental.</string>
     <string name="redownload">Download again</string>
     <string name="preview">Preview</string>
@@ -261,11 +268,19 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PC�
     <string name="web_wallpaper_desc">Renders a downloaded Wallpaper Engine web wallpaper in a WebView.</string>
     <string name="settings_music">Music reactive web wallpapers</string>
     <string name="settings_music_enable">Audio spectrum &amp; media info</string>
-    <string name="settings_music_desc">Gives web wallpapers the Wallpaper Engine audio and media-info API (title, artist, cover, progress). Needs microphone permission (to read the audio output spectrum) and notification access (to read the playing media). Off by default.</string>
+    <string name="settings_music_desc">Gives web wallpapers the Wallpaper Engine audio and media-info API (title, artist, cover, progress). The spectrum is captured from your media playback: it needs microphone permission and a one-off screen-recording prompt (no screen is recorded, only audio), and notification access to read the playing media. Off by default.</string>
     <string name="music_audio_ok">Audio spectrum: allowed</string>
     <string name="music_audio_missing">Audio spectrum: permission needed</string>
     <string name="music_media_ok">Media info: allowed</string>
     <string name="music_media_missing">Media info: notification access needed</string>
     <string name="music_grant">Grant</string>
+    <string name="music_audio_off">Audio spectrum: not capturing</string>
+    <string name="music_audio_capturing">Audio spectrum: capturing</string>
+    <string name="music_start">Start</string>
+    <string name="music_stop">Stop</string>
+    <string name="capture_channel">Audio capture</string>
+    <string name="capture_title">Capturing audio for wallpaper</string>
+    <string name="capture_text">Only media playback audio is analysed, nothing is recorded.</string>
+    <string name="capture_stop">Stop</string>
     <string name="dl_total_speed">Total %1$s</string>
 </resources>

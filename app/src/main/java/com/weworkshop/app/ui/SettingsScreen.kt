@@ -166,9 +166,22 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 val audioOk = remember(tick) { MusicBridge.hasAudioPermission(ctx) }
                 val notifOk = remember(tick) { MusicBridge.hasNotificationAccess(ctx) }
+                val capturing by com.weworkshop.app.wallpaper.AudioCaptureService.active.collectAsStateWithLifecycle()
+                val captureLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+                ) { r ->
+                    val d = r.data
+                    if (r.resultCode == android.app.Activity.RESULT_OK && d != null) {
+                        com.weworkshop.app.wallpaper.AudioCaptureService.start(ctx.applicationContext, r.resultCode, d)
+                    }
+                    tick++
+                }
                 val audioLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                     androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
-                ) { tick++ }
+                ) { ok ->
+                    tick++
+                    if (ok) captureLauncher.launch(com.weworkshop.app.wallpaper.AudioCaptureService.requestIntent(ctx))
+                }
                 Row(
                     Modifier.fillMaxWidth().clickable { AppSettings.setMusicReactive(!on) },
                     verticalAlignment = Alignment.CenterVertically,
@@ -184,12 +197,22 @@ fun SettingsScreen(onBack: () -> Unit) {
                 if (on) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            stringResource(if (audioOk) R.string.music_audio_ok else R.string.music_audio_missing),
+                            stringResource(
+                                when {
+                                    capturing -> R.string.music_audio_capturing
+                                    audioOk -> R.string.music_audio_off
+                                    else -> R.string.music_audio_missing
+                                },
+                            ),
                             Modifier.weight(1f),
                         )
-                        if (!audioOk) TextButton(onClick = { audioLauncher.launch(android.Manifest.permission.RECORD_AUDIO) }) {
-                            Text(stringResource(R.string.music_grant))
-                        }
+                        if (capturing) TextButton(onClick = {
+                            com.weworkshop.app.wallpaper.AudioCaptureService.stop(ctx.applicationContext)
+                        }) { Text(stringResource(R.string.music_stop)) }
+                        else TextButton(onClick = {
+                            if (audioOk) captureLauncher.launch(com.weworkshop.app.wallpaper.AudioCaptureService.requestIntent(ctx))
+                            else audioLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                        }) { Text(stringResource(R.string.music_start)) }
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(
