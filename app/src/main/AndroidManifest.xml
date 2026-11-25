@@ -52,6 +52,7 @@
             android:exported="true"
             android:label="@string/video_wallpaper_name" />
 
+        <activity android:name=".scene.ScenePreviewActivity" android:exported="true" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <service
             android:name=".download.DownloadService"
             android:exported="false"
@@ -93,6 +94,20 @@
             <meta-data
                 android:name="android.service.wallpaper"
                 android:resource="@xml/web_wallpaper" />
+        </service>
+
+        <!-- Native GLES renderer for Wallpaper Engine scene wallpapers (libwe_scene.so). -->
+        <service
+            android:name=".scene.SceneWallpaperService"
+            android:exported="true"
+            android:label="@string/scene_wallpaper_name"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/scene_wallpaper" />
         </service>
 
         <provider

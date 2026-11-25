@@ -8,3 +8,5 @@ keystore.properties
 .idea/
 *.iml
 .kotlin/
+app/src/main/jniLibs/
+native/scene/target/

@@ -255,4 +255,12 @@
     <string name="music_media_missing">媒体信息：需要通知使用权</string>
     <string name="music_grant">授权</string>
     <string name="dl_total_speed">总速度 %1$s</string>
+    <string name="scene_wallpaper_name">WE 场景壁纸（原生）</string>
+    <string name="scene_wallpaper_desc">使用 OpenGL ES 渲染 Wallpaper Engine 场景壁纸。</string>
+    <string name="set_scene_wallpaper">设为场景动态壁纸（原生渲染）</string>
+    <string name="scene_native_note">使用 OpenGL ES 原生渲染（着色器、特效、粒子）。需要 Wallpaper Engine 自带的 assets 文件夹；视差跟随手机倾斜。</string>
+    <string name="scene_assets_missing">未找到场景资源。请把电脑上 Wallpaper Engine 安装目录（Steam，app 431960）里的 assets 文件夹复制到：\n%1$s</string>
+    <string name="scene_unsupported">尚未支持绘制：%1$s</string>
+    <string name="scene_cannot_open">无法渲染该场景：%1$s</string>
+    <string name="scene_native_unavailable">此设备不支持原生场景渲染器（CPU 架构不支持）。</string>
 </resources>
