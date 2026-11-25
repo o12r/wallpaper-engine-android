@@ -15,8 +15,8 @@ android {
         applicationId = "com.weworkshop.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 29
-        versionName = "1.6.6"
+        versionCode = 35
+        versionName = "1.6.12"
     }
 
     // Release signing comes from ../keystore.properties (git-ignored). Without it, release

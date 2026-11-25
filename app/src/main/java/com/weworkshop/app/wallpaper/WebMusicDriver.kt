@@ -26,6 +26,7 @@ import java.io.RandomAccessFile
 class WebMusicDriver(private val web: WebView) {
     private val main = Handler(Looper.getMainLooper())
     private var root: File? = null
+    private var presetDir: File? = null
     private var properties: String? = null
     private var running = false
     private var lastVersion = -1
@@ -38,7 +39,7 @@ class WebMusicDriver(private val web: WebView) {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val r = root ?: return null
                 if (request.url.host != HOST || request.method != "GET") return null
-                return serve(r, request.url.path.orEmpty(), request.requestHeaders["Range"])
+                return serve(r, request.url.path.orEmpty(), request.requestHeaders["Range"], presetDir)
             }
 
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
@@ -59,6 +60,7 @@ class WebMusicDriver(private val web: WebView) {
     fun load(file: File, preset: File? = null) {
         val r = rootOf(file)
         root = r
+        presetDir = preset
         properties = readProperties(r, preset)
         val rel = file.relativeTo(r).path.replace(File.separatorChar, '/').split('/').joinToString("/") { android.net.Uri.encode(it) }
         web.loadUrl("https://$HOST/$rel")
@@ -137,6 +139,12 @@ class WebMusicDriver(private val web: WebView) {
 
         /** window.__weAudio(arr) / __weMedia(kind, obj) are called natively; pages register via wallpaperRegister*Listener. */
         const val SHIM = """(function(){if(window.__weShim)return;window.__weShim=true;
+// A <video> whose src was set to null (-> .../null) must stay invisible, as in Wallpaper Engine; Chrome would paint a grey error box over the page.
+try{var st=document.createElement('style');st.textContent='video[src="null"],video[src=""],video[src$="/null"],video:not([src]){display:none!important}';(document.head||document.documentElement).appendChild(st)}catch(e){}
+// Wallpapers size text as screenHeight/300*N, tuned for a landscape PC. On a portrait phone that is huge, so scale it down by width (relative to 16:9).
+document.addEventListener('DOMContentLoaded',function(){try{var ids=['clock','oDate','weather'],busy=false;
+function fix(e){if(busy)return;var w=innerWidth,h=innerHeight;if(w>=h)return;var px=parseFloat(e.style.fontSize);if(!(px>0))return;var k=w/(h*16/9);if(e.__k===e.style.fontSize)return;busy=true;e.style.fontSize=Math.max(1,Math.round(px*k))+'px';e.__k=e.style.fontSize;busy=false}
+ids.forEach(function(i){var e=document.getElementById(i);if(!e)return;fix(e);new MutationObserver(function(){fix(e)}).observe(e,{attributes:true,attributeFilter:['style']})})}catch(e){}});
 window.__weProps=function(p){try{var l=window.wallpaperPropertyListener;if(l&&l.applyUserProperties)l.applyUserProperties(p)}catch(e){}};
 var L={audio:[],status:[],properties:[],thumbnail:[],playback:[],timeline:[]},last={};
 function reg(k,cb){if(typeof cb!=='function')return;L[k].push(cb);if(last[k]!==undefined){try{cb(last[k])}catch(e){}}}
@@ -156,8 +164,12 @@ window.__weMedia('status',{enabled:false});
         private val HTML = Regex("<html[^>]*>", RegexOption.IGNORE_CASE)
 
         /** Puts the shim right after <head> (or <html>) so they apply before any page script. */
+        /** Pages build local-file URLs as 'file:///' + property value; point those at the virtual origin instead. */
+        const val FILE_PREFIX = "__f/"
+        private fun fixFileUrls(s: String) = if (s.contains("file:///")) s.replace("file:///", "https://$HOST/$FILE_PREFIX") else s
+
         fun injectInto(html: String): String {
-            val clean = html
+            val clean = fixFileUrls(html)
             val tag = "<script>$SHIM</script>"
             val m = HEAD.find(clean) ?: HTML.find(clean)
             return if (m != null) clean.substring(0, m.range.last + 1) + tag + clean.substring(m.range.last + 1) else tag + clean
@@ -214,11 +226,19 @@ window.__weMedia('status',{enabled:false});
         )
 
         /** Serves a file under [root] for the virtual origin, with CORS and Range support (needed by <video> / <audio>). */
-        fun serve(root: File, urlPath: String, range: String?): WebResourceResponse {
-            val rel = urlPath.trimStart('/')
-            val f = runCatching { File(root, rel).canonicalFile }.getOrNull()
-            val base = runCatching { root.canonicalFile }.getOrNull()
-            if (f == null || base == null || !f.path.startsWith(base.path) || !f.isFile) return notFound()
+        fun serve(root: File, urlPath: String, range: String?, preset: File? = null): WebResourceResponse {
+            val rel0 = urlPath.trimStart('/')
+            val viaFileUrl = rel0.startsWith(FILE_PREFIX)
+            val rel = if (viaFileUrl) rel0.removePrefix(FILE_PREFIX) else rel0
+            // 'file:///x' lookups: the preset's own folder first, then the wallpaper it belongs to.
+            val bases = if (viaFileUrl) listOfNotNull(preset, root) else listOf(root)
+            var f: File? = null
+            for (b in bases) {
+                val base = runCatching { b.canonicalFile }.getOrNull() ?: continue
+                val c = runCatching { File(base, rel).canonicalFile }.getOrNull() ?: continue
+                if (c.path.startsWith(base.path) && c.isFile) { f = c; break }
+            }
+            if (f == null) return notFound()
             val mime = mimeOf(f)
             val text = mime.startsWith("text/") || mime == "application/json"
             val headers = mutableMapOf("Access-Control-Allow-Origin" to "*", "Accept-Ranges" to "bytes", "Cache-Control" to "no-cache")
@@ -227,6 +247,13 @@ window.__weMedia('status',{enabled:false});
                 if (mime == "text/html") {
                     val bytes = injectInto(f.readText(Charsets.UTF_8)).toByteArray(Charsets.UTF_8)
                     return WebResourceResponse(mime, "utf-8", 200, "OK", headers, ByteArrayInputStream(bytes))
+                }
+                if (mime == "text/javascript" && f.length() < 8_000_000) {
+                    val src = f.readText(Charsets.UTF_8)
+                    if (src.contains("file:///")) {
+                        val bytes = fixFileUrls(src).toByteArray(Charsets.UTF_8)
+                        return WebResourceResponse(mime, "utf-8", 200, "OK", headers, ByteArrayInputStream(bytes))
+                    }
                 }
                 val len = f.length()
                 val m = range?.let { Regex("bytes=(\\d*)-(\\d*)").matchEntire(it.trim()) }

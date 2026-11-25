@@ -148,18 +148,13 @@ fun DetailScreen(
         ) {
             Box(
                 Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
-                    .background(Color(0x22000000)).clickable { onPreview(id) },
+                    .background(Color(0x22000000)),
             ) {
                 AsyncImage(
                     model = it.previewUrl,
                     contentDescription = it.title,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),
-                )
-                Icon(
-                    Icons.Filled.Fullscreen, stringResource(R.string.preview), tint = Color.White,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
-                        .clip(RoundedCornerShape(50)).background(Color(0x88000000)).padding(4.dp),
                 )
             }
             if (it.extraPreviews.isNotEmpty()) {
@@ -261,7 +256,6 @@ private fun DownloadPanel(
                         Icon(Icons.Filled.Download, null); Spacer(Modifier.size(8.dp))
                         Text(stringResource(R.string.download_to_phone, formatSize(item.fileSize)))
                     }
-                    OutlinedButton(onClick = { onPreview(item.id) }) { Text(stringResource(R.string.preview)) }
                 }
 
                 DownloadStatus.Queued -> {
@@ -325,7 +319,6 @@ private fun DownloadPanel(
 
                             else -> Spacer(Modifier.weight(1f))
                         }
-                        OutlinedButton(onClick = { onPreview(item.id) }) { Text(stringResource(R.string.preview)) }
                     }
                     if (SceneConverter.canConvert(item.id)) {
                         SceneConvertRow(item.id, conv, converted = video?.name == SceneConverter.OUTPUT_NAME)
