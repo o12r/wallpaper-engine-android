@@ -15,10 +15,8 @@ android {
         applicationId = "com.weworkshop.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 32
-        versionName = "1.7.0-scene5"
-        // TEMPORARY: lets this scene build install next to the normal app (separate data, own Steam login).
-        applicationIdSuffix = ".scene"
+        versionCode = 33
+        versionName = "1.7.0"
         // libwe_scene.so (Rust) is built by scripts/build-native.sh into src/main/jniLibs.
         ndk { abiFilters += setOf("arm64-v8a", "x86_64") }
     }

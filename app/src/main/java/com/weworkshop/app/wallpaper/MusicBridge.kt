@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import com.weworkshop.app.AppSettings
 import java.io.ByteArrayOutputStream
 import kotlin.math.hypot
+import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.sqrt
 
@@ -99,7 +100,7 @@ object MusicBridge {
     fun ensure(ctx: Context) {
         if (refs == 0) return
         if (!AppSettings.musicReactive.value) { stop(); return }
-        if (visualizer == null && hasAudioPermission(ctx)) startAudio()
+        if (visualizer == null && !AudioCaptureService.active.value && hasAudioPermission(ctx)) startAudio()
         if (sessionsListener == null && hasNotificationAccess(ctx)) startMedia(ctx)
     }
 
@@ -136,6 +137,27 @@ object MusicBridge {
         }
         spectrum = out
     }
+
+    /** Spectrum from [AudioCaptureService]: linear amplitudes (0..1) of the lower half of an FFT. */
+    fun feedSpectrum(mags: FloatArray) {
+        if (refs == 0 || !AppSettings.musicReactive.value) return
+        val n = mags.size
+        val prev = spectrum
+        val out = FloatArray(128)
+        for (b in 0 until 64) {
+            val lo = (n - 1.0).pow(b / 64.0).toInt().coerceAtLeast(1)
+            val hi = maxOf(lo + 1, (n - 1.0).pow((b + 1) / 64.0).toInt()).coerceAtMost(n)
+            var m = 0f
+            for (k in lo until hi) m = maxOf(m, mags[k])
+            val db = 20f * log10(m.coerceAtLeast(1e-6f))
+            val s = maxOf(((db + 70f) / 60f).coerceIn(0f, 1f), prev[b] * 0.85f)
+            out[b] = s
+            out[64 + b] = s
+        }
+        spectrum = out
+    }
+
+    fun clearSpectrum() { spectrum = FloatArray(128) }
 
     private fun startMedia(ctx: Context) {
         try {

@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
@@ -49,6 +50,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -103,6 +105,7 @@ class BrowseViewModel : ViewModel() {
     var typeTag by mutableStateOf<String?>(null)
     var genreTag by mutableStateOf<String?>(null)
     var resolutionTag by mutableStateOf<String?>(null)
+    var showPresets by mutableStateOf(false)
 
     val items = mutableStateListOf<WorkshopItem>()
     var loading by mutableStateOf(false)
@@ -138,6 +141,7 @@ class BrowseViewModel : ViewModel() {
         search = ""; appliedSearch = ""; lastSearch = ""
         if (sort == SortOrder.RELEVANCE) sort = SortOrder.TREND_WEEK
         when (tag) {
+            "Preset" -> { typeTag = null; showPresets = true }
             in Workshop.TYPE_TAGS -> typeTag = tag
             in Workshop.RESOLUTION_TAGS -> resolutionTag = tag
             in Workshop.AGE_TAGS -> AppSettings.setAllowedAges(AppSettings.allowedAges.value + tag)
@@ -167,6 +171,7 @@ class BrowseViewModel : ViewModel() {
             try {
                 val page = Workshop.query(
                     sort, appliedSearch, typeTag, genreTag, resolutionTag, AppSettings.allowedAges.value, cursor,
+                    includePresets = showPresets,
                 )
                 if (gen != generation) return@launch
                 val seen = items.mapTo(HashSet()) { it.id }
@@ -295,7 +300,8 @@ private fun FilterPanel(vm: BrowseViewModel) {
     val sortText = stringResource(vm.sort.label)
     val typeText = vm.typeTag?.let { typeLabel(it) } ?: stringResource(R.string.all_types)
     val summary = listOfNotNull(
-        if (searching) "“${vm.appliedSearch}”" else null, sortText, typeText, vm.genreTag, vm.resolutionTag,
+        if (searching) "“${vm.appliedSearch}”" else null, sortText, typeText,
+        if (vm.showPresets) typeLabel("Preset") else null, vm.genreTag, vm.resolutionTag,
     ).joinToString("  ·  ")
 
     Row(
@@ -348,6 +354,14 @@ private fun FilterPanel(vm: BrowseViewModel) {
                         label = { Text(typeLabel(t)) },
                     )
                 }
+                FilterChip(
+                    selected = vm.showPresets,
+                    onClick = { vm.showPresets = !vm.showPresets; vm.refresh() },
+                    label = { Text(stringResource(R.string.filter_show_presets)) },
+                    leadingIcon = if (vm.showPresets) {
+                        { Icon(Icons.Filled.Check, null, Modifier.size(FilterChipDefaults.IconSize)) }
+                    } else null,
+                )
             }
             ChipRow(stringResource(R.string.filter_tag)) {
                 FilterChip(

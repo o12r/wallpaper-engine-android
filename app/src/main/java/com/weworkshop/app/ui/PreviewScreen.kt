@@ -101,7 +101,7 @@ fun PreviewScreen(id: Long, onBack: () -> Unit) {
     val files = remember(done) { if (done) DownloadManager.contentFiles(id) else emptyList() }
     val video = files.filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }.maxByOrNull { it.length() }
     val image = files.filter { it.extension.lowercase() in IMAGE_EXTENSIONS }.maxByOrNull { it.length() }
-    val web = if (done && entry?.type.equals("Web", true)) remember(done) { WebWallpaper.entryFile(id) } else null
+    val web = if (done) remember(done) { WebWallpaper.resolve(id, entry?.type) } else null
 
     var showUi by remember { mutableStateOf(true) }
 
@@ -112,7 +112,7 @@ fun PreviewScreen(id: Long, onBack: () -> Unit) {
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { showUi = !showUi },
     ) {
         when {
-            web != null -> WebPreview(web, Modifier.fillMaxSize())
+            web != null -> WebPreview(web.first, web.second, Modifier.fillMaxSize())
             video != null -> VideoSurface(video, Modifier.fillMaxSize())
             image != null -> AsyncImage(model = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else -> AsyncImage(model = previewUrl, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -155,7 +155,7 @@ fun PreviewScreen(id: Long, onBack: () -> Unit) {
                         )
                     }
                     when {
-                        web != null -> Button(onClick = { setWebWallpaper(ctx, web) }, modifier = Modifier.fillMaxWidth()) {
+                        web != null -> Button(onClick = { setWebWallpaper(ctx, web.first, web.second) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
                             Text(stringResource(R.string.set_web_wallpaper))
                         }
@@ -227,7 +227,7 @@ fun VideoSurface(file: File, modifier: Modifier = Modifier) {
 
 /** Renders a Web-type wallpaper in a plain WebView at the phone's own viewport. */
 @Composable
-fun WebPreview(file: File, modifier: Modifier = Modifier) {
+fun WebPreview(file: File, preset: File?, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val holder = remember { arrayOfNulls<VirtualWebView>(1) }
@@ -236,7 +236,7 @@ fun WebPreview(file: File, modifier: Modifier = Modifier) {
             factory = { c ->
                 VirtualWebView(c).also { v ->
                     holder[0] = v
-                    v.music.load(file)
+                    v.music.load(file, preset)
                     v.music.start()
                 }
             },
@@ -257,8 +257,8 @@ fun WebPreview(file: File, modifier: Modifier = Modifier) {
     }
 }
 
-fun setWebWallpaper(ctx: Context, page: File) {
-    val intent = WebWallpaper.prepare(ctx, page)
+fun setWebWallpaper(ctx: Context, page: File, preset: File? = null) {
+    val intent = WebWallpaper.prepare(ctx, page, preset)
     try {
         ctx.startActivity(intent)
     } catch (_: ActivityNotFoundException) {

@@ -191,10 +191,14 @@ object DownloadManager {
         _queue.update { q -> if (id in q) listOf(id) + (q - id) else q }
     }
 
-    fun delete(id: Long) {
+    /** Removes the entry; with [files] also its folder (the app copy, and the in-place folder of scanned items). */
+    fun delete(id: Long, files: Boolean = true) {
         val e = _entries.value[id] ?: return
         if (e.status is DownloadStatus.Running) return
-        itemDir(id).deleteRecursively()
+        if (files) {
+            itemDir(id).deleteRecursively()
+            e.localDir?.let { File(it).deleteRecursively() }
+        }
         _entries.update { it - id }
         saveIndex()
     }
@@ -279,7 +283,9 @@ object DownloadManager {
         val lastProgress = AtomicLong(SystemClock.elapsedRealtime())
         var failure: Throwable? = null
         // Network speed: compressed bytes received, sampled once a second by the watchdog loop below.
+        // onChunkCompleted reports the running TOTAL per depot, not a per-chunk size, so keep the latest total per depot.
         val netBytes = AtomicLong()
+        val depotBytes = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         val speed = AtomicLong()
 
         DepotDownloader(
@@ -313,7 +319,8 @@ object DownloadManager {
                     uncompressedBytes: Long,
                 ) {
                     lastProgress.set(SystemClock.elapsedRealtime())
-                    netBytes.addAndGet(compressedBytes)
+                    depotBytes[depotId] = compressedBytes
+                    netBytes.set(depotBytes.values.sum())
                     setStatus(id, DownloadStatus.Running(depotPercentComplete, App.str(R.string.dl_downloading), speed.get()))
                 }
             })

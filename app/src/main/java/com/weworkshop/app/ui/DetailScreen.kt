@@ -86,6 +86,7 @@ fun DetailScreen(
     onDownloads: () -> Unit,
     onPreview: (Long) -> Unit,
     onBrowseTag: (String) -> Unit,
+    onOpenItem: (Long) -> Unit,
 ) {
     val ctx = LocalContext.current
     val downloads by DownloadManager.entries.collectAsStateWithLifecycle()
@@ -190,7 +191,7 @@ fun DetailScreen(
                 }
             }
 
-            DownloadPanel(it, entry?.status, onDownloads, onPreview)
+            DownloadPanel(it, entry?.status, onDownloads, onPreview, onOpenItem)
 
             val otherTags = it.tags.filter { t -> t !in Workshop.TYPE_TAGS && t !in Workshop.AGE_TAGS }
             if (otherTags.isNotEmpty()) {
@@ -243,7 +244,15 @@ private fun SceneConvertRow(id: Long, state: SceneConverter.State?, converted: B
 }
 
 @Composable
-private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloads: () -> Unit, onPreview: (Long) -> Unit) {
+private fun DownloadPanel(
+    item: WorkshopItem, status: DownloadStatus?, onDownloads: () -> Unit, onPreview: (Long) -> Unit, onOpenItem: (Long) -> Unit,
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        ConfirmDeleteDialog(item.title, onDismiss = { confirmDelete = false }) { files ->
+            DownloadManager.delete(item.id, files); confirmDelete = false
+        }
+    }
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     Card(Modifier.fillMaxWidth()) {
@@ -290,7 +299,7 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                     val video = files.filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }.maxByOrNull { it.length() }
                     val image = files.filter { it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.maxByOrNull { it.length() }
                     val sceneDir = if (item.type == "Scene") remember(status) { SceneWallpaper.projectDir(item.id) } else null
-                    val webFile = if (item.type == "Web") remember(status) { WebWallpaper.entryFile(item.id) } else null
+                    val webFile = remember(status) { WebWallpaper.resolve(item.id, item.type) }
 
                     Text(stringResource(R.string.downloaded_files, files.size), color = MaterialTheme.colorScheme.secondary)
                     Text(
@@ -299,12 +308,19 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         when {
-                            sceneDir != null && NativeScene.available -> Button(onClick = { setSceneWallpaper(ctx, sceneDir) }, modifier = Modifier.weight(1f)) {
+                            sceneDir != null && NativeScene.available -> { Button(onClick = { setSceneWallpaper(ctx, sceneDir) }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
                                 Text(stringResource(R.string.set_scene_wallpaper))
                             }
+                                // The scene was also converted to MP4: keep the video route available too.
+                                if (video != null) {
+                                    OutlinedButton(onClick = { setVideoWallpaper(ctx, video) }, modifier = Modifier.weight(1f)) {
+                                        Text(stringResource(R.string.set_live_wallpaper))
+                                    }
+                                }
+                            }
 
-                            webFile != null -> FilledTonalButton(onClick = { setWebWallpaper(ctx, webFile) }, modifier = Modifier.weight(1f)) {
+                            webFile != null -> FilledTonalButton(onClick = { setWebWallpaper(ctx, webFile.first, webFile.second) }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
                                 Text(stringResource(R.string.set_web_wallpaper))
                             }
@@ -339,6 +355,15 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    val dep = if (webFile == null && video == null) remember(status) { WebWallpaper.dependencyId(item.id) } else null
+                    if (dep != null) {
+                        Text(
+                            stringResource(R.string.preset_note, dep.toString()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        TextButton(onClick = { onOpenItem(dep) }) { Text(stringResource(R.string.preset_open, dep.toString())) }
+                    }
                     if (item.type == "Web" || item.type == "Application") {
                         Text(
                             stringResource(if (item.type == "Web") R.string.web_note else R.string.app_note),
@@ -347,7 +372,7 @@ private fun DownloadPanel(item: WorkshopItem, status: DownloadStatus?, onDownloa
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { DownloadManager.delete(item.id) }) { Text(stringResource(R.string.delete)) }
+                        OutlinedButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.delete)) }
                         OutlinedButton(onClick = { DownloadManager.enqueue(item) }, enabled = !item.partial) { Text(stringResource(R.string.redownload)) }
                     }
                 }
