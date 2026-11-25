@@ -312,6 +312,8 @@ private fun DownloadPanel(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var webBusy by remember { mutableStateOf(false) }
+    // Bumped whenever a conversion produces a new file, so the action list is re-read from disk.
+    var filesVersion by remember { mutableIntStateOf(0) }
     val cfg = LocalConfiguration.current
     val dens = LocalDensity.current.density
     val pw = ((minOf(cfg.screenWidthDp, cfg.screenHeightDp) * dens).toInt() / 2) * 2
@@ -355,8 +357,19 @@ private fun DownloadPanel(
                     val convStates by SceneConverter.states.collectAsStateWithLifecycle()
                     val conv = convStates[item.id]
                     // Re-list after a conversion finishes so the new MP4 is picked up.
-                    val files = remember(status, conv) { DownloadManager.contentFiles(item.id) }
-                    val video = files.filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }.maxByOrNull { it.length() }
+                    // The converter drops its state entry when it finishes: re-read the folder then, so
+                    // the freshly converted MP4 immediately shows up as a "set as live wallpaper" action.
+                    var convWasRunning by remember(item.id) { mutableStateOf(false) }
+                    LaunchedEffect(conv) {
+                        if (conv is SceneConverter.State.Running) convWasRunning = true
+                        else if (convWasRunning) { convWasRunning = false; filesVersion++ }
+                    }
+                    val files = remember(status, conv, filesVersion) { DownloadManager.contentFiles(item.id) }
+                    // Converted outputs win over any video shipped with the item (scenes can carry asset clips).
+                    val videos = files.filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }
+                    val video = videos.firstOrNull { it.name == SceneConverter.OUTPUT_NAME }
+                        ?: videos.firstOrNull { it.name == "web_live.mp4" }
+                        ?: videos.maxByOrNull { it.length() }
                     val image = files.filter { it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.maxByOrNull { it.length() }
                     val sceneDir = if (item.type == "Scene") remember(status) { SceneWallpaper.projectDir(item.id) } else null
                     val webFile = remember(status) { WebWallpaper.resolve(item.id, item.type) }
@@ -429,10 +442,19 @@ private fun DownloadPanel(
                                     val res = try {
                                         com.weworkshop.app.wallpaper.webToMp4(ctx, webFile.first, webFile.second, pw, ph, out = out, seconds = 10, fps = 30)
                                     } catch (e: Throwable) { null }
-                                    if (res != null) Toast.makeText(ctx, out.absolutePath, Toast.LENGTH_LONG).show()
-                                    else Toast.makeText(ctx, R.string.web_capture_failed, Toast.LENGTH_LONG).show()
+                                    if (res != null) {
+                                        filesVersion++
+                                        Toast.makeText(ctx, out.absolutePath, Toast.LENGTH_LONG).show()
+                                    } else Toast.makeText(ctx, R.string.web_capture_failed, Toast.LENGTH_LONG).show()
                                     webBusy = false
                                 }
+                            }
+                            // A converted (or bundled) video is applicable as a live wallpaper too.
+                            if (video != null) {
+                                RenderOption(
+                                    label = stringResource(R.string.set_live_wallpaper),
+                                    info = stringResource(R.string.web_mp4_info),
+                                ) { setVideoWallpaper(ctx, video) }
                             }
                         }
 
