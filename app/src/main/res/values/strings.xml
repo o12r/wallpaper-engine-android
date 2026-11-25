@@ -283,4 +283,12 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PCâ€
     <string name="capture_text">Only media playback audio is analysed, nothing is recorded.</string>
     <string name="capture_stop">Stop</string>
     <string name="dl_total_speed">Total %1$s</string>
+    <string name="scene_wallpaper_name">WE scene wallpaper (native)</string>
+    <string name="scene_wallpaper_desc">Renders Wallpaper Engine scene wallpapers with OpenGL ES.</string>
+    <string name="set_scene_wallpaper">Set scene as live wallpaper (native)</string>
+    <string name="scene_native_note">Rendered natively with OpenGL ES (shaders, effects, particles). It needs Wallpaper Engine\u2019s own assets folder; parallax follows the phone\u2019s tilt.</string>
+    <string name="scene_assets_missing">Scene assets not found. Copy the \u201cassets\u201d folder of your Wallpaper Engine install (Steam, app 431960) to:\n%1$s</string>
+    <string name="scene_unsupported">Not drawn yet: %1$s</string>
+    <string name="scene_cannot_open">Cannot render this scene: %1$s</string>
+    <string name="scene_native_unavailable">The native scene renderer is not available on this device (unsupported CPU).</string>
 </resources>

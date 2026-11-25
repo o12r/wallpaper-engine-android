@@ -67,7 +67,9 @@ import coil3.compose.AsyncImage
 import com.weworkshop.app.R
 import com.weworkshop.app.download.DownloadManager
 import com.weworkshop.app.download.DownloadStatus
+import com.weworkshop.app.scene.NativeScene
 import com.weworkshop.app.scene.SceneConverter
+import com.weworkshop.app.scene.SceneWallpaper
 import com.weworkshop.app.steam.Workshop
 import com.weworkshop.app.steam.WorkshopItem
 import com.weworkshop.app.wallpaper.VideoWallpaperService
@@ -290,6 +292,7 @@ private fun DownloadPanel(
                     val files = remember(status, conv) { DownloadManager.contentFiles(item.id) }
                     val video = files.filter { it.extension.lowercase() in VideoWallpaperService.VIDEO_EXTENSIONS }.maxByOrNull { it.length() }
                     val image = files.filter { it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }.maxByOrNull { it.length() }
+                    val sceneDir = if (item.type == "Scene") remember(status) { SceneWallpaper.projectDir(item.id) } else null
                     val webFile = remember(status) { WebWallpaper.resolve(item.id, item.type) }
 
                     Text(stringResource(R.string.downloaded_files, files.size), color = MaterialTheme.colorScheme.secondary)
@@ -299,6 +302,18 @@ private fun DownloadPanel(
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         when {
+                            sceneDir != null && NativeScene.available -> { Button(onClick = { setSceneWallpaper(ctx, sceneDir) }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
+                                Text(stringResource(R.string.set_scene_wallpaper))
+                            }
+                                // The scene was also converted to MP4: keep the video route available too.
+                                if (video != null) {
+                                    OutlinedButton(onClick = { setVideoWallpaper(ctx, video) }, modifier = Modifier.weight(1f)) {
+                                        Text(stringResource(R.string.set_live_wallpaper))
+                                    }
+                                }
+                            }
+
                             webFile != null -> FilledTonalButton(onClick = { setWebWallpaper(ctx, webFile.first, webFile.second) }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
                                 Text(stringResource(R.string.set_web_wallpaper))
@@ -319,6 +334,9 @@ private fun DownloadPanel(
 
                             else -> Spacer(Modifier.weight(1f))
                         }
+                    }
+                    if (sceneDir != null) {
+                        SceneNativeNotes(ctx, sceneDir)
                     }
                     if (SceneConverter.canConvert(item.id)) {
                         SceneConvertRow(item.id, conv, converted = video?.name == SceneConverter.OUTPUT_NAME)
