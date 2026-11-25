@@ -8,7 +8,6 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
@@ -28,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -67,7 +65,6 @@ import com.weworkshop.app.AppSettings
 import com.weworkshop.app.R
 import com.weworkshop.app.download.DownloadManager
 import com.weworkshop.app.ui.AppTheme
-import com.weworkshop.app.ui.PreviewScreen
 import com.weworkshop.app.ui.formatSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -87,14 +84,7 @@ class WallpaperSettingsActivity : ComponentActivity() {
         setContent {
             AppTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    var previewId by remember { mutableStateOf<Long?>(null) }
-                    val p = previewId
-                    if (p != null) {
-                        BackHandler { previewId = null }
-                        PreviewScreen(p, onBack = { previewId = null })
-                    } else {
-                        SettingsScreen(onBack = { finish() }, onPreview = { previewId = it })
-                    }
+                    SettingsScreen(onBack = { finish() })
                 }
             }
         }
@@ -107,7 +97,7 @@ private data class VideoChoice(val id: Long, val title: String, val preview: Str
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onPreview: (Long) -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
     var choices by remember { mutableStateOf<List<VideoChoice>?>(null) }
     var selected by remember { mutableStateOf(WallpaperPrefs.resolveVideo(ctx)?.absolutePath) }
@@ -280,7 +270,6 @@ private fun SettingsScreen(onBack: () -> Unit, onPreview: (Long) -> Unit) {
                             )
                         }
                         if (isSel) Icon(Icons.Filled.CheckCircle, stringResource(R.string.wp_selected), tint = MaterialTheme.colorScheme.primary)
-                        IconButton(onClick = { onPreview(c.id) }) { Icon(Icons.Filled.Fullscreen, stringResource(R.string.preview)) }
                     }
                 }
             }

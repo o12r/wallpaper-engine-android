@@ -115,7 +115,6 @@
     <string name="delete_keep_files">仅从列表移除</string>
     <string name="web_note">网页壁纸使用 WebView 渲染。依赖 Wallpaper Engine 电脑端接口的页面可能无法完整显示；设为动态壁纸为实验性功能。</string>
     <string name="redownload">重新下载</string>
-    <string name="preview">预览</string>
     <string name="pick_in_list">请在列表中选择“WE 视频壁纸”</string>
     <string name="live_unsupported">此设备不支持动态壁纸</string>
     <string name="wallpaper_set">壁纸已设置</string>
@@ -127,6 +126,9 @@
     <string name="status_queued">排队中</string>
     <string name="status_failed">失败：%1$s</string>
     <string name="status_done">已完成</string>
+    <string name="dl_missing">文件缺失</string>
+    <string name="dl_missing_note">这个项目的文件夹已经不存在了，重新下载后才能使用。</string>
+    <string name="type_unknown">未知类型</string>
 
     <string name="wp_settings_title">WE 视频壁纸设置</string>
     <string name="wp_active_reapply">已在使用 · 重新应用</string>
@@ -154,9 +156,6 @@
     <string name="logout">退出登录</string>
     <string name="logout_confirm_title">退出登录？</string>
 
-    <string name="preview_tap_hint">点击画面隐藏 / 显示按钮</string>
-    <string name="preview_not_downloaded">当前显示的是创意工坊预览图，下载后可预览真实视频效果。</string>
-    <string name="preview_download">下载</string>
     <string name="sort_relevance">相关度</string>
     <string name="filter_resolution">分辨率</string>
     <string name="res_portrait">竖屏 %1$s</string>
@@ -278,4 +277,18 @@
     <string name="scene_unsupported">尚未支持绘制：%1$s</string>
     <string name="scene_cannot_open">无法渲染该场景：%1$s</string>
     <string name="scene_native_unavailable">此设备不支持原生场景渲染器（CPU 架构不支持）。</string>
+    <string name="scene_assets_import">导入内置资源</string>
+    <string name="scene_assets_importing">正在导入 %1$d 个文件…</string>
+    <string name="scene_assets_imported">已导入 %1$d 个文件</string>
+    <string name="scene_assets_import_failed">导入失败：%1$s</string>
+    <string name="scene_live_info">用 GPU 实时渲染场景文件：着色器、粒子、视差都能工作，还会跟随重力感应和触摸。画质最好，也最耗电。</string>
+    <string name="scene_still_info">用 CPU 渲染场景的一帧并设为普通图片壁纸。不会动、也不耗电，是慢速手机上的稳妥选择。</string>
+    <string name="web_still_info">截取网页当前画面设为普通图片壁纸。依赖 WebGL 或加载较慢的页面可能截出空白。</string>
+    <string name="web_mp4_info">把网页录制约 10 秒成视频文件放在壁纸目录里，再把该视频设为动态壁纸。播放流畅省电，但录制不会完美循环，页面里的交互也会失效。</string>
+    <string name="video_live_info">把视频文件直接播放为动态壁纸，按屏幕比例铺满。播放流畅、耗电低；会循环播放且没有声音。</string>
+    <string name="video_still_info">取视频第一帧设为普通图片壁纸。不会有动画，是最省电的选择。</string>
+    <string name="scene_still_failed">无法生成静态图：%1$s</string>
+    <string name="web_capture_working">正在渲染网页…</string>
+    <string name="web_capture_failed">无法捕获该网页画面（依赖脚本或 WebGL 的页面可能会失败）</string>
+    <string name="info_about">说明</string>
 </resources>

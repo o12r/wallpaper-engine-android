@@ -10,3 +10,9 @@ keystore.properties
 .kotlin/
 app/src/main/jniLibs/
 native/scene/target/
+# native / packaged output that must be built locally
+native/scene/vendor/*/target/
+app/src/main/assets/we_assets/
+.cxx/
+*.apk
+we-apk-archive/

@@ -53,7 +53,6 @@
             android:exported="true"
             android:label="@string/video_wallpaper_name" />
 
-        <activity android:name=".scene.ScenePreviewActivity" android:exported="true" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <service
             android:name=".download.DownloadService"
             android:exported="false"

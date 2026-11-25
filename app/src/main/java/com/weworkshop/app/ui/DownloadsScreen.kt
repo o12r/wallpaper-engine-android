@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.VerticalAlignTop
@@ -52,6 +53,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -68,6 +70,24 @@ import coil3.compose.AsyncImage
 import com.weworkshop.app.download.DownloadManager
 import com.weworkshop.app.download.DownloadStatus
 import com.weworkshop.app.steam.Workshop
+
+/**
+ * Small coloured chip naming the wallpaper type, so the list can be scanned by Scene / Video / Web.
+ */
+@Composable
+private fun TypeTag(type: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(4.dp),
+    ) {
+        Text(
+            Workshop.TYPE_LABELS[type]?.let { stringResource(it) } ?: type,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +108,7 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                 is DownloadStatus.Running -> 0
                 DownloadStatus.Queued -> 1
                 is DownloadStatus.Failed -> 2
-                is DownloadStatus.Done -> 3
+                is DownloadStatus.Done -> if (it.status.filesMissing) 2 else 3
             }
         }.thenBy { queue.indexOf(it.id).let { i -> if (i < 0) Int.MAX_VALUE else i } }
             .thenByDescending { it.id }
@@ -149,8 +169,11 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                         )
                         Spacer(Modifier.size(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(e.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val sub = listOfNotNull(e.type?.let { t -> Workshop.TYPE_LABELS[t]?.let { stringResource(it) } ?: t }, formatSize(e.fileSize)).joinToString(" · ")
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                e.type?.takeIf { it.isNotBlank() }?.let { TypeTag(it) }
+                                Text(e.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            val sub = listOfNotNull(e.type?.takeIf { it.isBlank() }?.let { stringResource(R.string.type_unknown) }, formatSize(e.fileSize)).joinToString(" · ")
                             Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             when (val s = e.status) {
                                 DownloadStatus.Queued -> {
@@ -171,7 +194,24 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
                                 )
 
-                                is DownloadStatus.Done -> Text(
+                                is DownloadStatus.Done -> if (s.filesMissing) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            stringResource(R.string.dl_missing),
+                                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+                                        )
+                                        TextButton(onClick = { onOpen(e.id) }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                            Text(stringResource(R.string.redownload), style = MaterialTheme.typography.labelMedium)
+                                        }
+                                        Spacer(Modifier.weight(1f))
+                                        IconButton(onClick = { confirmDelete = e.id to e.title }, modifier = Modifier.size(28.dp)) {
+                                            Icon(
+                                                Icons.Filled.DeleteOutline, stringResource(R.string.delete),
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    }
+                                } else Text(
                                     stringResource(R.string.status_done) + (s.exportedTo?.let { " · $it" } ?: ""),
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary,
                                 )
@@ -198,7 +238,7 @@ fun DownloadsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit) {
                             }
 
                             else -> {
-                                if (e.status is DownloadStatus.Done) {
+                                if (e.status is DownloadStatus.Done && !e.status.filesMissing) {
                                     val ctx = LocalContext.current
                                     IconButton(onClick = { ExternalOpen.share(ctx, e.id) }) {
                                         Icon(Icons.Filled.Share, stringResource(R.string.share))

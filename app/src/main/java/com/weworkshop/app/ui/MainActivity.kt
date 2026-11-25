@@ -93,12 +93,6 @@ private fun Root() {
         }
         composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable(
-            "preview/{id}",
-            arguments = listOf(navArgument("id") { type = NavType.LongType }),
-        ) { entry ->
-            PreviewScreen(id = entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
-        }
-        composable(
             "detail/{id}",
             arguments = listOf(navArgument("id") { type = NavType.LongType }),
         ) { entry ->
@@ -106,7 +100,6 @@ private fun Root() {
                 id = entry.arguments!!.getLong("id"),
                 onBack = { nav.popBackStack() },
                 onDownloads = { nav.navigate("downloads") },
-                onPreview = { nav.navigate("preview/$it") },
                 onOpenItem = { nav.navigate("detail/$it") },
                 onBrowseTag = { tag ->
                     BrowseRequests.tag.value = tag

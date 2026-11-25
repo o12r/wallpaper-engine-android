@@ -1,7 +1,9 @@
 package com.weworkshop.app.scene
 
+import android.app.WallpaperColors
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -14,7 +16,10 @@ import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
+import com.weworkshop.app.wallpaper.ColorReport
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.abs
@@ -31,6 +36,12 @@ class SceneWallpaperService : WallpaperService() {
         private val main = Handler(Looper.getMainLooper())
         private var view: GlView? = null
         private var visible = false
+
+        /** Colours reported to the system (desktop text, status bar), refreshed once per scene. */
+        @Volatile private var colors: WallpaperColors? = null
+
+        /** Set when the drawn frame no longer matches [colors]; the GL thread clears it. */
+        @Volatile private var needColors = true
 
         // Parallax input, -1..1 (y up). Written on the main thread, read on the GL thread.
         @Volatile private var px = 0f
@@ -88,6 +99,8 @@ class SceneWallpaperService : WallpaperService() {
                 if (path != loadedFrom) {
                     scene?.destroy(); scene = null
                     loadedFrom = path
+                    colors = null
+                    needColors = true
                     if (path != null) {
                         scene = try {
                             NativeScene.create(path, SceneWallpaper.assetsDir(ctx).takeIf { it.isDirectory }?.absolutePath)
@@ -109,12 +122,52 @@ class SceneWallpaperService : WallpaperService() {
                 val dt = if (last == 0L) 0.016f else (now - last) / 1000f
                 last = now
                 val animated = s.draw(w, h, (now - start) / 1000f, dt, px, py)
+                if (needColors) {
+                    needColors = false
+                    runCatching { reportColors(w, h) }.onFailure {
+                        Log.w(TAG, "colour readback failed", it)
+                        status("colour readback failed: ${it.message}")
+                    }
+                }
                 if (frames++ == 0) status("first frame ${w}x$h animated=$animated")
-                if (visible && animated) {
+                // The library's "wants another frame" hint misses scenes that move only through shader time,
+                // which would then freeze after one frame. Keep ticking at the frame budget while visible.
+                if (visible) {
                     val frameMs = 1000L / fpsLimit.coerceAtLeast(1)
                     val spent = SystemClock.elapsedRealtime() - now
+                    main.removeCallbacks(tick)
                     main.postDelayed(tick, (frameMs - spent).coerceAtLeast(0))
+                    if (frames % 120 == 0) status("frames=$frames fps=$fpsLimit animated=$animated dt=${"%.3f".format(dt)}")
                 }
+            }
+
+            /**
+             * Reads back the frame that was just drawn and reports its colours to the system, so the
+             * launcher can pick readable icon, label and status bar colours for this wallpaper.
+             */
+            private fun reportColors(width: Int, height: Int) {
+                if (width <= 0 || height <= 0 || width.toLong() * height > 8_000_000L) return
+                val buf = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
+                android.opengl.GLES30.glReadPixels(
+                    0, 0, width, height,
+                    android.opengl.GLES30.GL_RGBA, android.opengl.GLES30.GL_UNSIGNED_BYTE, buf,
+                )
+                buf.rewind()
+                val px = IntArray(width * height)
+                buf.asIntBuffer().get(px)
+                // GL hands the rows back bottom-up, so copy them into screen order.
+                val straight = IntArray(px.size)
+                for (y in 0 until height) System.arraycopy(px, y * width, straight, (height - 1 - y) * width, width)
+                val full = Bitmap.createBitmap(straight, width, height, Bitmap.Config.ARGB_8888)
+                val sample = ColorReport.scaled(full)
+                if (sample !== full) full.recycle()
+                val (base, top) = ColorReport.analyze(sample)
+                sample.recycle()
+                val dark = ColorReport.wantsDarkText(top)
+                status("colours top=%.2f darkText=$dark".format(top))
+                if (base == null) return
+                colors = ColorReport.withTextHint(base, dark)
+                main.post { runCatching { notifyColorsChanged() } }
             }
 
             fun release() {
@@ -122,8 +175,13 @@ class SceneWallpaperService : WallpaperService() {
             }
         }
 
+        /** Launchers and the system UI ask for these to decide text and status bar colours. */
+        override fun onComputeColors(): WallpaperColors? = colors
+
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
+            colors = null
+            needColors = true
             setTouchEventsEnabled(true)
             prefs.registerOnSharedPreferenceChangeListener(this)
             sensors = getSystemService(Context.SENSOR_SERVICE) as? SensorManager

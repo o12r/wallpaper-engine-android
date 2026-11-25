@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.util.Log
 import com.weworkshop.app.download.DownloadManager
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -89,6 +91,53 @@ object SceneConverter {
     fun cancel(id: Long) {
         synchronized(this) { jobs.remove(id) }?.cancel()
         _states.update { it - id }
+    }
+
+    /** One still frame of the scene's static layers at t=0. Video-texture scenes return their first frame. */
+    suspend fun still(id: Long, maxSide: Int = 1920): Bitmap = withContext(Dispatchers.Default) {
+        val pkg = ScenePackage.open(DownloadManager.contentDir(id)) ?: throw IOException("No scene.pkg / scene.json")
+        pkg.use {
+            val scene = loadScene(pkg)
+            val video = scene.video
+            if (video != null) {
+                val tmp = File.createTempFile("scene_still", ".mp4", DownloadManager.contentDir(id))
+                val mmr = MediaMetadataRetriever()
+                try {
+                    tmp.writeBytes(video)
+                    mmr.setDataSource(tmp.absolutePath)
+                    mmr.getFrameAtTime(0) ?: throw IOException("Cannot decode first video frame")
+                } finally {
+                    runCatching { mmr.release() }
+                    tmp.delete()
+                }
+            } else {
+                try {
+                    val k = min(1f, maxSide / max(scene.width, scene.height))
+                    val outW = max(1, (scene.width * k).roundToInt())
+                    val outH = max(1, (scene.height * k).roundToInt())
+                    val bmp = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bmp)
+                    canvas.drawColor(scene.clear)
+                    canvas.scale(outW / scene.width, outH / scene.height)
+                    // Same slight overscan as render().
+                    canvas.scale(1.04f, 1.04f, scene.width / 2, scene.height / 2)
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                    val m = Matrix()
+                    for (l in scene.layers) {
+                        m.reset()
+                        m.setScale(l.w / l.bitmap.width, l.h / l.bitmap.height)
+                        m.postTranslate(-l.w / 2, -l.h / 2)
+                        m.postRotate(l.angle)
+                        m.postTranslate(l.x, l.y)
+                        paint.alpha = (l.alpha * 255).toInt()
+                        canvas.drawBitmap(l.bitmap, m, paint)
+                    }
+                    bmp
+                } finally {
+                    scene.layers.forEach { it.bitmap.recycle() }
+                }
+            }
+        }
     }
 
     // region scene parsing

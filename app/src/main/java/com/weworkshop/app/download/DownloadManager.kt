@@ -47,7 +47,8 @@ import java.util.concurrent.atomic.AtomicLong
 sealed interface DownloadStatus {
     data object Queued : DownloadStatus
     data class Running(val progress: Float, val message: String, val speedBps: Long = 0) : DownloadStatus
-    data class Done(val exportedTo: String?) : DownloadStatus
+    /** [filesMissing] is set when the folder a finished item points at is gone (deleted elsewhere). */
+    data class Done(val exportedTo: String?, val filesMissing: Boolean = false) : DownloadStatus
     data class Failed(val message: String) : DownloadStatus
 }
 
@@ -465,8 +466,9 @@ object DownloadManager {
             val type = meta?.optString("type")?.trim()?.takeIf { it.isNotEmpty() }
                 ?.lowercase()?.replaceFirstChar { it.uppercase() }
                 ?: when {
-                    files.any { it.extension.lowercase() in VIDEO_EXTENSIONS } -> "Video"
                     files.any { it.name.equals("scene.pkg", true) } -> "Scene"
+                    files.any { it.name.equals("index.html", true) } -> "Web"
+                    files.any { it.extension.lowercase() in VIDEO_EXTENSIONS } -> "Video"
                     else -> cur?.type
                 }
             val preview = meta?.optString("preview")?.takeIf { it.isNotBlank() }?.let { File(dir, it) }?.takeIf { it.isFile }
@@ -502,7 +504,7 @@ object DownloadManager {
                 val o = arr.getJSONObject(i)
                 val id = o.getLong("id")
                 val status = when (o.optString("status")) {
-                    "done" -> DownloadStatus.Done(o.optString("exported").ifEmpty { null })
+                    "done" -> DownloadStatus.Done(o.optString("exported").ifEmpty { null }, o.optBoolean("missing"))
                     else -> DownloadStatus.Failed(o.optString("error").ifEmpty { App.str(R.string.dl_interrupted) })
                 }
                 map[id] = DownloadEntry(
@@ -512,8 +514,60 @@ object DownloadManager {
                 )
             }
             _entries.value = map
+            healEntries(map)
         } catch (t: Throwable) {
             Log.w(TAG, "failed to load index", t)
+        }
+    }
+
+    /**
+     * An index can lose its preview URLs and types (older builds, a hand-written index): refill both
+     * from the item's own folder instead of showing an empty card with no actions.
+     */
+    private fun healEntries(map: MutableMap<Long, DownloadEntry>) {
+        var changed = false
+        for ((id, e) in map.toList()) {
+            val dir = e.localDir?.let(::File) ?: contentDir(id)
+            val done = e.status as? DownloadStatus.Done
+            // A folder can survive with only DepotDownloader bookkeeping in it after an interrupted
+            // download: that is missing content, not a usable item.
+            val hasContent = dir.isDirectory &&
+                dir.walkTopDown().onEnter { it.name != DepotDownloader.CONFIG_DIR }.any { it.isFile }
+            if (!hasContent) {
+                // Nothing on disk any more: mark it, so the list can offer a fresh download.
+                if (done != null && !done.filesMissing) {
+                    map[id] = e.copy(status = done.copy(filesMissing = true))
+                    changed = true
+                }
+                continue
+            }
+            var fixed = e
+            if (done != null && done.filesMissing) fixed = e.copy(status = done.copy(filesMissing = false))
+            if (fixed.previewUrl.isBlank()) {
+                val fromMeta = runCatching { JSONObject(File(dir, "project.json").readText()).optString("preview") }
+                    .getOrNull()?.takeIf { it.isNotBlank() }?.let { File(dir, it) }?.takeIf { it.isFile }
+                val preview = fromMeta
+                    ?: dir.listFiles()?.firstOrNull { it.isFile && it.nameWithoutExtension.equals("preview", true) }
+                if (preview != null) fixed = fixed.copy(previewUrl = Uri.fromFile(preview).toString())
+            }
+            // A web project can carry an mp4 and a scene can carry its converted video, so the markers
+            // are checked in order of certainty rather than trusting the stored type.
+            val names = dir.listFiles()?.map { it.name.lowercase() }.orEmpty()
+            val type = when {
+                names.contains("scene.pkg") -> "Scene"
+                names.contains("index.html") -> "Web"
+                names.any { it.substringAfterLast('.', "") in VIDEO_EXTENSIONS } -> "Video"
+                else -> null
+            }
+            if (type != null && type != fixed.type) fixed = fixed.copy(type = type)
+            if (fixed != e) {
+                map[id] = fixed
+                changed = true
+            }
+        }
+        if (changed) {
+            _entries.value = map
+            saveIndex()
         }
     }
 
@@ -527,7 +581,10 @@ object DownloadManager {
                     .put("type", e.type ?: "").put("size", e.fileSize)
                 if (e.localDir != null) o.put("dir", e.localDir)
                 when (val s = e.status) {
-                    is DownloadStatus.Done -> o.put("status", "done").put("exported", s.exportedTo ?: "")
+                    is DownloadStatus.Done -> {
+                        o.put("status", "done").put("exported", s.exportedTo ?: "")
+                        if (s.filesMissing) o.put("missing", true)
+                    }
                     is DownloadStatus.Failed -> o.put("status", "failed").put("error", s.message)
                     else -> o.put("status", "failed").put("error", App.str(R.string.dl_interrupted))
                 }

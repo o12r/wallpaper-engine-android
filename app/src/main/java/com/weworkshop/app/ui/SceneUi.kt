@@ -5,7 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.app.WallpaperManager
 import android.widget.Toast
+import android.content.Intent as AndroidIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.weworkshop.app.R
 import com.weworkshop.app.scene.NativeScene
+import com.weworkshop.app.scene.SceneAssetsImporter
 import com.weworkshop.app.scene.SceneWallpaper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -57,6 +63,28 @@ fun SceneNativeNotes(ctx: Context, project: File) {
                 stringResource(R.string.scene_assets_missing, SceneWallpaper.assetsDir(ctx).absolutePath),
                 style = small, color = MaterialTheme.colorScheme.error,
             )
+            val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                if (uri != null) {
+                    runCatching {
+                        ctx.contentResolver.takePersistableUriPermission(uri, AndroidIntent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    SceneAssetsImporter.import(ctx, uri)
+                }
+            }
+            val importState by SceneAssetsImporter.state.collectAsState()
+            OutlinedButton(
+                onClick = { picker.launch(null) },
+                enabled = importState !is SceneAssetsImporter.State.Running,
+            ) { Text(stringResource(R.string.scene_assets_import)) }
+            when (val st = importState) {
+                is SceneAssetsImporter.State.Running ->
+                    Text(stringResource(R.string.scene_assets_importing, st.done), style = small, color = dim)
+                is SceneAssetsImporter.State.Done ->
+                    Text(stringResource(R.string.scene_assets_imported, st.count), style = small, color = dim)
+                is SceneAssetsImporter.State.Failed ->
+                    Text(stringResource(R.string.scene_assets_import_failed, st.msg), style = small, color = MaterialTheme.colorScheme.error)
+                else -> {}
+            }
         }
         val list = issues.orEmpty()
         val err = list.firstOrNull { it.startsWith("ERROR:") }

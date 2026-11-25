@@ -1,6 +1,11 @@
 package com.weworkshop.app.ui
 
+import android.app.WallpaperManager
+import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.content.Intent
+import android.graphics.Bitmap
+import android.widget.Toast
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,11 +30,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wallpaper
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -58,7 +64,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,7 +82,11 @@ import com.weworkshop.app.steam.Workshop
 import com.weworkshop.app.steam.WorkshopItem
 import com.weworkshop.app.wallpaper.VideoWallpaperService
 import com.weworkshop.app.wallpaper.WebWallpaper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
 import java.text.DateFormat
 import java.util.Date
 
@@ -84,7 +96,6 @@ fun DetailScreen(
     id: Long,
     onBack: () -> Unit,
     onDownloads: () -> Unit,
-    onPreview: (Long) -> Unit,
     onBrowseTag: (String) -> Unit,
     onOpenItem: (Long) -> Unit,
 ) {
@@ -186,7 +197,7 @@ fun DetailScreen(
                 }
             }
 
-            DownloadPanel(it, entry?.status, onDownloads, onPreview, onOpenItem)
+            DownloadPanel(it, entry?.status, onDownloads, onOpenItem)
 
             val otherTags = it.tags.filter { t -> t !in Workshop.TYPE_TAGS && t !in Workshop.AGE_TAGS }
             if (otherTags.isNotEmpty()) {
@@ -212,6 +223,50 @@ fun DetailScreen(
 }
 
 /** EXPERIMENTAL scene -> MP4 conversion controls. */
+/**
+ * One way of putting the item on screen: a full width button with an ℹ️ on its right that explains
+ * what this rendering does and when to pick it.
+ */
+/** First frame of [video], used by the still wallpaper route. */
+private fun firstFrame(video: File): Bitmap? {
+    val mmr = MediaMetadataRetriever()
+    return try {
+        mmr.setDataSource(video.absolutePath)
+        mmr.getFrameAtTime(0)
+    } catch (e: Throwable) {
+        null
+    } finally {
+        runCatching { mmr.release() }
+    }
+}
+
+@Composable
+private fun RenderOption(
+    label: String,
+    info: String,
+    primary: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    var show by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        if (primary) {
+            Button(onClick = onClick, enabled = enabled, modifier = Modifier.weight(1f)) { Text(label) }
+        } else {
+            OutlinedButton(onClick = onClick, enabled = enabled, modifier = Modifier.weight(1f)) { Text(label) }
+        }
+        IconButton(onClick = { show = true }) { Icon(Icons.Outlined.Info, stringResource(R.string.info_about)) }
+    }
+    if (show) {
+        AlertDialog(
+            onDismissRequest = { show = false },
+            title = { Text(label) },
+            text = { Text(info) },
+            confirmButton = { TextButton(onClick = { show = false }) { Text(stringResource(R.string.ok)) } },
+        )
+    }
+}
+
 @Composable
 private fun SceneConvertRow(id: Long, state: SceneConverter.State?, converted: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -230,17 +285,23 @@ private fun SceneConvertRow(id: Long, state: SceneConverter.State?, converted: B
                 }
             }
         }
-        Text(
-            stringResource(R.string.scene_convert_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
+}
+
+private suspend fun setBitmapWallpaper(ctx: Context, bmp: Bitmap) {
+    val err = withContext(Dispatchers.IO) {
+        try {
+            WallpaperManager.getInstance(ctx).setBitmap(bmp, null, true, WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
+            null
+        } catch (e: Throwable) { e.message ?: e.javaClass.simpleName }
+    }
+    if (err == null) Toast.makeText(ctx, R.string.wallpaper_set, Toast.LENGTH_SHORT).show()
+    else Toast.makeText(ctx, ctx.getString(R.string.wallpaper_set_failed) + ": " + err, Toast.LENGTH_LONG).show()
 }
 
 @Composable
 private fun DownloadPanel(
-    item: WorkshopItem, status: DownloadStatus?, onDownloads: () -> Unit, onPreview: (Long) -> Unit, onOpenItem: (Long) -> Unit,
+    item: WorkshopItem, status: DownloadStatus?, onDownloads: () -> Unit, onOpenItem: (Long) -> Unit,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     if (confirmDelete) {
@@ -250,6 +311,11 @@ private fun DownloadPanel(
     }
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    var webBusy by remember { mutableStateOf(false) }
+    val cfg = LocalConfiguration.current
+    val dens = LocalDensity.current.density
+    val pw = ((minOf(cfg.screenWidthDp, cfg.screenHeightDp) * dens).toInt() / 2) * 2
+    val ph = ((maxOf(cfg.screenWidthDp, cfg.screenHeightDp) * dens).toInt() / 2) * 2
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             when (status) {
@@ -300,39 +366,100 @@ private fun DownloadPanel(
                         stringResource(R.string.saved_to, status.exportedTo ?: DownloadManager.itemDir(item.id).absolutePath),
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        when {
-                            sceneDir != null && NativeScene.available -> { Button(onClick = { setSceneWallpaper(ctx, sceneDir) }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
-                                Text(stringResource(R.string.set_scene_wallpaper))
-                            }
-                                // The scene was also converted to MP4: keep the video route available too.
-                                if (video != null) {
-                                    OutlinedButton(onClick = { setVideoWallpaper(ctx, video) }, modifier = Modifier.weight(1f)) {
-                                        Text(stringResource(R.string.set_live_wallpaper))
+                    // The ways to put this item on screen are stacked, each with its own explanation.
+                    when {
+                        sceneDir != null && NativeScene.available -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            RenderOption(
+                                label = stringResource(R.string.set_scene_wallpaper),
+                                info = stringResource(R.string.scene_live_info),
+                                primary = true,
+                            ) { setSceneWallpaper(ctx, sceneDir) }
+                            RenderOption(
+                                label = stringResource(R.string.set_static_wallpaper),
+                                info = stringResource(R.string.scene_still_info),
+                                ) {
+                                scope.launch {
+                                    val bmp = try {
+                                        withContext(Dispatchers.IO) { SceneConverter.still(item.id) }
+                                    } catch (e: Throwable) {
+                                        Toast.makeText(ctx, ctx.getString(R.string.scene_still_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                        null
                                     }
+                                    if (bmp != null) setBitmapWallpaper(ctx, bmp)
                                 }
                             }
-
-                            webFile != null -> FilledTonalButton(onClick = { setWebWallpaper(ctx, webFile.first, webFile.second) }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
-                                Text(stringResource(R.string.set_web_wallpaper))
+                            // The scene may also have been converted to a video: that route is a separate way.
+                            if (video != null) {
+                                RenderOption(
+                                    label = stringResource(R.string.set_live_wallpaper),
+                                    info = stringResource(R.string.scene_convert_note),
+                                ) { setVideoWallpaper(ctx, video) }
                             }
+                        }
 
-                            video != null -> Button(onClick = { setVideoWallpaper(ctx, video) }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
-                                Text(stringResource(R.string.set_live_wallpaper))
-                            }
-
-                            image != null -> FilledTonalButton(
-                                onClick = { scope.launch { setStaticWallpaper(ctx, image) } },
-                                modifier = Modifier.weight(1f),
+                        webFile != null -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            RenderOption(
+                                label = stringResource(R.string.set_web_wallpaper),
+                                info = stringResource(R.string.web_note),
+                                primary = true,
+                            ) { setWebWallpaper(ctx, webFile.first, webFile.second) }
+                            RenderOption(
+                                label = stringResource(if (webBusy) R.string.web_capture_working else R.string.set_static_wallpaper),
+                                info = stringResource(R.string.web_still_info),
+                                enabled = !webBusy,
                             ) {
-                                Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
-                                Text(stringResource(R.string.set_static_wallpaper))
+                                scope.launch {
+                                    webBusy = true
+                                    val bmp = try {
+                                        com.weworkshop.app.wallpaper.webStill(ctx, webFile.first, webFile.second, pw, ph, 3000)
+                                    } catch (e: Throwable) { null }
+                                    if (bmp != null) setBitmapWallpaper(ctx, bmp)
+                                    else Toast.makeText(ctx, R.string.web_capture_failed, Toast.LENGTH_LONG).show()
+                                    webBusy = false
+                                }
                             }
+                            RenderOption(
+                                label = stringResource(if (webBusy) R.string.web_capture_working else R.string.scene_convert),
+                                info = stringResource(R.string.web_mp4_info),
+                                enabled = !webBusy,
+                            ) {
+                                scope.launch {
+                                    webBusy = true
+                                    val out = File(DownloadManager.contentDir(item.id), "web_live.mp4")
+                                    val res = try {
+                                        com.weworkshop.app.wallpaper.webToMp4(ctx, webFile.first, webFile.second, pw, ph, out = out, seconds = 10, fps = 30)
+                                    } catch (e: Throwable) { null }
+                                    if (res != null) Toast.makeText(ctx, out.absolutePath, Toast.LENGTH_LONG).show()
+                                    else Toast.makeText(ctx, R.string.web_capture_failed, Toast.LENGTH_LONG).show()
+                                    webBusy = false
+                                }
+                            }
+                        }
 
-                            else -> Spacer(Modifier.weight(1f))
+                        video != null -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            RenderOption(
+                                label = stringResource(R.string.set_live_wallpaper),
+                                info = stringResource(R.string.video_live_info),
+                                primary = true,
+                            ) { setVideoWallpaper(ctx, video) }
+                            RenderOption(
+                                label = stringResource(R.string.set_static_wallpaper),
+                                info = stringResource(R.string.video_still_info),
+                            ) {
+                                scope.launch {
+                                    val bmp = withContext(Dispatchers.IO) { firstFrame(video) }
+                                    if (bmp != null) setBitmapWallpaper(ctx, bmp)
+                                    else Toast.makeText(ctx, ctx.getString(R.string.scene_still_failed, ""), Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+
+                        image != null -> FilledTonalButton(
+                            onClick = { scope.launch { setStaticWallpaper(ctx, image) } },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Filled.Wallpaper, null); Spacer(Modifier.size(8.dp))
+                            Text(stringResource(R.string.set_static_wallpaper))
                         }
                     }
                     if (sceneDir != null) {
@@ -357,14 +484,19 @@ private fun DownloadPanel(
                         )
                         TextButton(onClick = { onOpenItem(dep) }) { Text(stringResource(R.string.preset_open, dep.toString())) }
                     }
-                    if (item.type == "Web" || item.type == "Application") {
-                        Text(
-                            stringResource(if (item.type == "Web") R.string.web_note else R.string.app_note),
+                    when {
+                        item.type == "Application" -> Text(
+                            stringResource(R.string.app_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if ((status as? DownloadStatus.Done)?.filesMissing == true) Text(
+                        stringResource(R.string.dl_missing_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         OutlinedButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.delete)) }
                         OutlinedButton(onClick = { DownloadManager.enqueue(item) }, enabled = !item.partial) { Text(stringResource(R.string.redownload)) }
                     }

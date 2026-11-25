@@ -121,7 +121,6 @@
     <string name="delete_keep_files">Only remove from list</string>
     <string name="web_note">Web wallpapers are rendered in a WebView. Pages that rely on Wallpaper Engine\u2019s desktop APIs may not work fully; setting one as a live wallpaper is experimental.</string>
     <string name="redownload">Download again</string>
-    <string name="preview">Preview</string>
     <string name="pick_in_list">Choose “WE Video Wallpaper” in the list</string>
     <string name="live_unsupported">This device doesn’t support live wallpapers</string>
     <string name="wallpaper_set">Wallpaper set</string>
@@ -134,6 +133,9 @@
     <string name="status_queued">Queued</string>
     <string name="status_failed">Failed: %1$s</string>
     <string name="status_done">Done</string>
+    <string name="dl_missing">Files missing</string>
+    <string name="dl_missing_note">The folder for this item is gone. Download it again to use it.</string>
+    <string name="type_unknown">Unknown type</string>
 
     <!-- Live wallpaper settings -->
     <string name="wp_settings_title">WE Video Wallpaper</string>
@@ -164,9 +166,6 @@
     <string name="logout_confirm_title">Sign out?</string>
 
     <!-- Preview -->
-    <string name="preview_tap_hint">Tap to hide or show controls</string>
-    <string name="preview_not_downloaded">Showing the Workshop preview. Download the wallpaper to preview the real video.</string>
-    <string name="preview_download">Download</string>
     <string name="sort_relevance">Relevance</string>
     <string name="filter_resolution">Resolution</string>
     <string name="res_portrait">Portrait %1$s</string>
@@ -291,4 +290,18 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PC�
     <string name="scene_unsupported">Not drawn yet: %1$s</string>
     <string name="scene_cannot_open">Cannot render this scene: %1$s</string>
     <string name="scene_native_unavailable">The native scene renderer is not available on this device (unsupported CPU).</string>
+    <string name="scene_assets_import">Import built-in assets</string>
+    <string name="scene_assets_importing">Importing %1$d files…</string>
+    <string name="scene_assets_imported">Imported %1$d files</string>
+    <string name="scene_assets_import_failed">Import failed: %1$s</string>
+    <string name="scene_live_info">Renders the scene file in real time on the GPU: shaders, particles and parallax work, and it follows tilt and touch. Best looking, heaviest on battery.</string>
+    <string name="scene_still_info">Renders one frame of the scene on the CPU and sets it as a plain image wallpaper. It does not animate and uses no power, so it is the safe choice on slow phones.</string>
+    <string name="web_still_info">Takes a picture of the page and sets it as a plain image wallpaper. Pages that draw with WebGL or need longer to load may come out empty.</string>
+    <string name="web_mp4_info">Records about 10 seconds of the page into a video file next to the wallpaper, then sets that video as the live wallpaper. Playback is smooth and cheap, but the recording does not loop perfectly and the page stops responding to input.</string>
+    <string name="video_live_info">Plays the video file as a live wallpaper, scaled to fill the screen. Smooth and light on battery; it loops and stays muted.</string>
+    <string name="video_still_info">Takes the first frame of the video and sets it as a plain image wallpaper. Nothing animates, so it is the cheapest option.</string>
+    <string name="scene_still_failed">Could not render a still frame: %1$s</string>
+    <string name="web_capture_working">Rendering the page…</string>
+    <string name="web_capture_failed">Could not capture this page (script-heavy or WebGL pages may fail)</string>
+    <string name="info_about">About</string>
 </resources>

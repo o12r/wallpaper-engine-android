@@ -2,11 +2,13 @@ package com.weworkshop.app.wallpaper
 
 import android.annotation.SuppressLint
 import android.app.Presentation
+import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -125,12 +127,26 @@ class WebWallpaperService : WallpaperService() {
         private var h = 0
         private var visible = false
 
+        /** Colours reported to the system (desktop text, status bar), refreshed while visible. */
+        @Volatile private var colors: WallpaperColors? = null
+
+        /** Pages animate, so keep the reported colours in step with what is on screen. */
+        private val colourTick = object : Runnable {
+            override fun run() {
+                readColors()
+                if (visible) main.postDelayed(this, COLOUR_INTERVAL_MS)
+            }
+        }
+
         private val frame = object : Runnable {
             override fun run() {
                 drawSoftware()
                 if (visible && software) main.postDelayed(this, 33)
             }
         }
+
+        /** Launchers and the system UI ask for these to decide text and status bar colours. */
+        override fun onComputeColors(): WallpaperColors? = colors
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
@@ -203,17 +219,60 @@ class WebWallpaperService : WallpaperService() {
             val f = File(path)
             if (!f.isFile) return
             loaded = "$path|$preset"
+            colors = null
             music?.load(f, preset?.let(::File))
         }
 
         private fun applyVisible(v: Boolean) {
             main.removeCallbacks(frame)
+            main.removeCallbacks(colourTick)
             if (v) {
                 web?.onResume(); web?.resumeTimers(); music?.start()
                 if (software) main.post(frame)
+                // Give the page a moment to paint before looking at it.
+                main.postDelayed(colourTick, COLOUR_INTERVAL_MS / 2)
             } else {
                 music?.stop(); web?.onPause(); web?.pauseTimers()
             }
+        }
+
+        /**
+         * Draws the page small and reports how light it is, so the launcher can pick readable icon,
+         * label and status bar colours. A page that renders nothing leaves the last result in place.
+         */
+        private fun readColors() {
+            val view = web ?: return
+            val width = w
+            val height = h
+            if (width <= 0 || height <= 0) return
+            try {
+                val bmp = Bitmap.createBitmap(
+                    (width / COLOUR_DOWNSCALE).coerceAtLeast(1),
+                    (height / COLOUR_DOWNSCALE).coerceAtLeast(1),
+                    Bitmap.Config.ARGB_8888,
+                )
+                val canvas = Canvas(bmp)
+                canvas.scale(1f / COLOUR_DOWNSCALE, 1f / COLOUR_DOWNSCALE)
+                view.draw(canvas)
+                val (base, top) = ColorReport.analyze(bmp)
+                bmp.recycle()
+                if (base == null) {
+                    status("colours: page drew nothing")
+                    return
+                }
+                val dark = ColorReport.wantsDarkText(top)
+                colors = ColorReport.withTextHint(base, dark)
+                status("colours top=%.2f darkText=$dark".format(top))
+                notifyColorsChanged()
+            } catch (t: Throwable) {
+                Log.w("WebWallpaper", "colour readback failed", t)
+                status("colours failed: ${t.message}")
+            }
+        }
+
+        /** Phones drop app logs, so the last colour result is also kept on disk for diagnosis. */
+        private fun status(msg: String) {
+            runCatching { File(filesDir, "web_status.txt").appendText("${System.currentTimeMillis()} $msg" + System.lineSeparator()) }
         }
 
         override fun onVisibilityChanged(v: Boolean) {
@@ -249,5 +308,13 @@ class WebWallpaperService : WallpaperService() {
                 holder.unlockCanvasAndPost(canvas)
             }
         }
+    }
+
+    private companion object {
+        /** How often the reported colours are refreshed while the wallpaper is visible. */
+        const val COLOUR_INTERVAL_MS = 15_000L
+
+        /** The page is drawn at 1/[COLOUR_DOWNSCALE] size for the analysis. */
+        const val COLOUR_DOWNSCALE = 8
     }
 }
