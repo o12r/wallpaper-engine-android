@@ -245,7 +245,28 @@ pub struct Video {
     pub data: std::sync::Arc<Vec<u8>>,
 }
 
+/// WE-ANDROID: how the host frames a desktop-shaped scene on a phone.
+#[derive(Clone, Copy, Debug)]
+pub struct View {
+    /// Sideways shift in clip units: 1.0 moves the picture a screen-half to the right.
+    pub dx: f32,
+    /// Extra zoom about the middle, 1.0 for none.
+    pub zoom: f32,
+    /// Pull small layers that lie partly or wholly off screen back in.
+    pub clamp: bool,
+}
+
+impl Default for View {
+    fn default() -> Self {
+        Self { dx: 0.0, zoom: 1.0, clamp: false }
+    }
+}
+
 pub struct Renderer {
+    /// WE-ANDROID: the host's framing, and the objects it asks not to draw.
+    view: View,
+    names: Vec<String>,
+    hidden: std::collections::BTreeSet<usize>,
     pub(crate) videos: Vec<Video>,
     programs: Vec<Program>,
     layers: Vec<Drawn>,
@@ -285,6 +306,27 @@ pub struct Needs {
 }
 
 impl Renderer {
+    /// WE-ANDROID: every object's name, drawn or not.
+    pub fn object_names(&self) -> &[String] {
+        &self.names
+    }
+
+    /// WE-ANDROID: stops drawing the objects with these names (all of a name's objects).
+    pub fn hide_named(&mut self, names: &[String]) {
+        self.hidden = self
+            .names
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| names.iter().any(|h| h == *n))
+            .map(|(i, _)| i)
+            .collect();
+    }
+
+    /// WE-ANDROID: sets the framing.
+    pub fn set_view(&mut self, view: View) {
+        self.view = view;
+    }
+
     /// WE-ANDROID: the video textures the host has to feed.
     pub fn videos(&self) -> &[Video] {
         &self.videos
@@ -312,6 +354,9 @@ impl Renderer {
             }
         };
         let mut renderer = Renderer {
+            view: View::default(),
+            names: scene.names.clone(),
+            hidden: std::collections::BTreeSet::new(),
             videos: Vec::new(),
             programs: vec![program],
             layers: Vec::new(),
@@ -596,7 +641,11 @@ impl Renderer {
             // Layer alpha blends RGB over the scene background; the final scene is opaque.
             gl.color_mask(true, true, true, false);
             let mut current_program = None;
-            for layer in self.layers.iter().filter(|layer| layer.visible) {
+            for layer in self
+                .layers
+                .iter()
+                .filter(|layer| layer.visible && !self.hidden.contains(&layer.object))
+            {
                 if layer.compose
                     && let Some(chain) = &layer.chain
                 {
@@ -727,7 +776,13 @@ impl Renderer {
     ) -> (Affine, (f32, f32)) {
         let moved = [shift[0] * layer.depth[0], shift[1] * layer.depth[1]];
         // Zooming scales the whole placement, which is centred on the scene's middle.
-        let zoomed = |affine: Affine| affine.map(|row| row.map(|value| value * self.zoom));
+        let total = self.zoom * self.view.zoom;
+        let zoomed = |affine: Affine| {
+            let mut a = affine.map(|row| row.map(|value| value * total));
+            // WE-ANDROID: the host's sideways shift is in screen units, so it isn't zoomed.
+            a[0][2] += self.view.dx;
+            a
+        };
         let (affine, size) = match &layer.swarm {
             // Particles are placed in scene units over the whole scene.
             Some(_) => {
@@ -736,7 +791,20 @@ impl Renderer {
                 (whole, self.size)
             }
             None => {
-                let origin = [layer.origin[0] + moved[0], layer.origin[1] + moved[1]];
+                let mut origin = [layer.origin[0] + moved[0], layer.origin[1] + moved[1]];
+                // WE-ANDROID: a desktop scene is wider than a phone; keep small layers that
+                // would sit past the screen's edge inside it.
+                if self.view.clamp && fit == Fit::Cover {
+                    let fitted = (target.0.max(1) as f32 / self.size.0)
+                        .max(target.1.max(1) as f32 / self.size.1)
+                        * total;
+                    let half = target.0.max(1) as f32 / (2.0 * fitted);
+                    let centre = self.size.0 / 2.0 - self.view.dx * half;
+                    let reach = layer.size.0 * 0.5;
+                    if reach * 2.0 < half * 1.9 {
+                        origin[0] = origin[0].clamp(centre - half + reach, centre + half - reach);
+                    }
+                }
                 (
                     place_fitted(self.size, target, origin, layer.size, layer.angle, fit),
                     layer.size,

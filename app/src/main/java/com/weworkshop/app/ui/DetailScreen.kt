@@ -30,6 +30,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -197,6 +199,8 @@ fun DetailScreen(
                 }
             }
 
+            SubscribeRow(it, entry?.status)
+
             DownloadPanel(it, entry?.status, onDownloads, onOpenItem)
 
             val otherTags = it.tags.filter { t -> t !in Workshop.TYPE_TAGS && t !in Workshop.AGE_TAGS }
@@ -297,6 +301,62 @@ private suspend fun setBitmapWallpaper(ctx: Context, bmp: Bitmap) {
     }
     if (err == null) Toast.makeText(ctx, R.string.wallpaper_set, Toast.LENGTH_SHORT).show()
     else Toast.makeText(ctx, ctx.getString(R.string.wallpaper_set_failed) + ": " + err, Toast.LENGTH_LONG).show()
+}
+
+/** Subscribe / unsubscribe on the signed-in Steam account; a fresh subscribe offers to download. */
+@Composable
+private fun SubscribeRow(item: WorkshopItem, status: DownloadStatus?) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var subscribed by remember(item.id) { mutableStateOf<Boolean?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var confirmUnsub by remember { mutableStateOf(false) }
+    var offerDownload by remember { mutableStateOf(false) }
+    LaunchedEffect(item.id) { subscribed = runCatching { Workshop.isSubscribed(item.id) }.getOrNull() }
+
+    fun apply(target: Boolean) {
+        scope.launch {
+            busy = true
+            try {
+                Workshop.setSubscribed(item.id, target)
+                subscribed = target
+                if (target && status == null) offerDownload = true
+            } catch (e: Throwable) {
+                Toast.makeText(ctx, ctx.getString(R.string.subscribe_failed, e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+            } finally { busy = false }
+        }
+    }
+
+    val state = subscribed
+    if (state == true) {
+        OutlinedButton(onClick = { confirmUnsub = true }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Check, null); Spacer(Modifier.size(8.dp)); Text(stringResource(R.string.subscribed))
+        }
+    } else {
+        Button(onClick = { apply(true) }, enabled = state == false && !busy, modifier = Modifier.fillMaxWidth()) {
+            if (state == null || busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            else Icon(Icons.Filled.Add, null)
+            Spacer(Modifier.size(8.dp)); Text(stringResource(R.string.subscribe))
+        }
+    }
+    if (confirmUnsub) {
+        AlertDialog(
+            onDismissRequest = { confirmUnsub = false },
+            title = { Text(stringResource(R.string.unsubscribe_title)) },
+            text = { Text(stringResource(R.string.unsubscribe_msg, item.title)) },
+            confirmButton = { TextButton(onClick = { confirmUnsub = false; apply(false) }) { Text(stringResource(R.string.unsubscribe)) } },
+            dismissButton = { TextButton(onClick = { confirmUnsub = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (offerDownload) {
+        AlertDialog(
+            onDismissRequest = { offerDownload = false },
+            title = { Text(stringResource(R.string.subscribe_download_title)) },
+            text = { Text(stringResource(R.string.subscribe_download_msg, item.title)) },
+            confirmButton = { TextButton(onClick = { offerDownload = false; DownloadManager.enqueue(item) }) { Text(stringResource(R.string.download_now)) } },
+            dismissButton = { TextButton(onClick = { offerDownload = false }) { Text(stringResource(R.string.not_now)) } },
+        )
+    }
 }
 
 @Composable
@@ -486,6 +546,8 @@ private fun DownloadPanel(
                     }
                     if (sceneDir != null) {
                         SceneNativeNotes(ctx, sceneDir)
+                        Text(stringResource(R.string.frame_title), style = MaterialTheme.typography.titleSmall)
+                        SceneFrameControls(ctx, sceneDir)
                     }
                     if (SceneConverter.canConvert(item.id)) {
                         SceneConvertRow(item.id, conv, converted = video?.name == SceneConverter.OUTPUT_NAME)

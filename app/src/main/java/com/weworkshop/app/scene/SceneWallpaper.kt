@@ -23,6 +23,50 @@ object SceneWallpaper {
     const val STRENGTH_MAX = 300
     const val STRENGTH_DEFAULT = 100
 
+    /** How a desktop-shaped scene is framed on the phone, and which of its layers are left out. */
+    data class Framing(val clamp: Boolean, val dx: Int, val zoom: Int, val hidden: Set<String>)
+
+    private fun key(project: String, field: String) = "p.${File(project).name}.$field"
+
+    fun hasOverride(ctx: Context, project: String) = prefs(ctx).getBoolean(key(project, "own"), false)
+    fun manualHidden(ctx: Context, project: String): Set<String> =
+        prefs(ctx).getStringSet(key(project, "hidden"), emptySet()) ?: emptySet()
+
+    /** Global values, or the wallpaper's own when it overrides them. */
+    fun framing(ctx: Context, project: String, own: Boolean = hasOverride(ctx, project)): Framing {
+        val p = prefs(ctx)
+        fun k(field: String) = if (own) key(project, field) else "g.$field"
+        return Framing(
+            clamp = p.getBoolean(k("clamp"), true),
+            dx = p.getInt(k("dx"), 0).coerceIn(-100, 100),
+            zoom = p.getInt(k("zoom"), 100).coerceIn(50, 200),
+            hidden = manualHidden(ctx, project),
+        )
+    }
+
+    fun setOverride(ctx: Context, project: String, on: Boolean) {
+        val e = prefs(ctx).edit()
+        if (on) {
+            // Start from what is in force now, so switching on changes nothing by itself.
+            val g = framing(ctx, project, false)
+            e.putBoolean(key(project, "clamp"), g.clamp)
+                .putInt(key(project, "dx"), g.dx).putInt(key(project, "zoom"), g.zoom)
+        }
+        e.putBoolean(key(project, "own"), on).apply()
+    }
+
+    /** Writes one framing value to the global slot or, when [project] overrides, to the wallpaper's own. */
+    fun put(ctx: Context, project: String?, field: String, value: Any) {
+        val name = if (project != null && hasOverride(ctx, project)) key(project, field) else "g.$field"
+        val e = prefs(ctx).edit()
+        when (value) { is Boolean -> e.putBoolean(name, value); is Int -> e.putInt(name, value) }
+        e.apply()
+    }
+
+    fun setHidden(ctx: Context, project: String, names: Set<String>) {
+        prefs(ctx).edit().putStringSet(key(project, "hidden"), names).apply()
+    }
+
     fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun fps(ctx: Context) = prefs(ctx).getInt(KEY_FPS, FPS_DEFAULT).coerceIn(FPS_MIN, FPS_MAX)

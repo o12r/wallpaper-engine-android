@@ -17,6 +17,11 @@ class NativeScene private constructor(private var handle: Long) {
         if (handle != 0L && bins.size >= 128) nativeSetSpectrum(handle, bins)
     }
 
+    /** Frames the scene for the phone: sideways shift (-1..1 of the screen), extra zoom, pulling edge layers in; hides layers by name. */
+    fun setView(dx: Float, zoom: Float, clamp: Boolean, hidden: List<String>) {
+        if (handle != 0L) nativeSetView(handle, dx, zoom, clamp, hidden.joinToString("\n"))
+    }
+
     /** Bit 0 pointer, bit 1 time of day, bit 2 audio. */
     val needs: Int get() = if (handle == 0L) 0 else nativeNeeds(handle)
     val wantsAudio: Boolean get() = needs and 4 != 0
@@ -67,6 +72,12 @@ class NativeScene private constructor(private var handle: Long) {
             return nativeCheck(projectDir, assetsDir).lines().filter { it.isNotBlank() }
         }
 
+        /** Every object's name in the scene, once each. */
+        fun layerNames(projectDir: String, assetsDir: String?): List<String> =
+            if (!loaded) emptyList() else nativeLayerNames(projectDir, assetsDir).lines().filter { it.isNotBlank() }
+
+        @JvmStatic private external fun nativeSetView(h: Long, dx: Float, zoom: Float, clamp: Boolean, hidden: String)
+        @JvmStatic private external fun nativeLayerNames(project: String, assets: String?): String
         @JvmStatic private external fun nativeCreate(project: String, assets: String?, properties: String?): Long
         @JvmStatic private external fun nativeDraw(h: Long, w: Int, hgt: Int, time: Float, delta: Float, px: Float, py: Float): Boolean
         @JvmStatic private external fun nativeSetSpectrum(h: Long, bins: FloatArray)

@@ -62,7 +62,15 @@ class SubscriptionsViewModel : ViewModel() {
     private var nextPage = 1
     private var job: Job? = null
 
+    private var seenVersion = Workshop.subscriptionsVersion.value
+
     init { refresh() }
+
+    /** Reloads when a subscribe/unsubscribe happened since this page last loaded. */
+    fun refreshIfChanged() {
+        val v = Workshop.subscriptionsVersion.value
+        if (v != seenVersion) { seenVersion = v; refresh() }
+    }
 
     fun refresh(pull: Boolean = false) {
         job?.cancel()
@@ -114,6 +122,8 @@ fun SubscriptionsScreen(
     vm: SubscriptionsViewModel = viewModel(),
 ) {
     val downloads by DownloadManager.entries.collectAsStateWithLifecycle()
+    val subVersion by Workshop.subscriptionsVersion.collectAsStateWithLifecycle()
+    LaunchedEffect(subVersion) { vm.refreshIfChanged() }
     Scaffold(
         topBar = {
             TopAppBar(

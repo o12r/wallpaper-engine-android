@@ -3,6 +3,9 @@ package com.weworkshop.app.steam
 import com.weworkshop.app.App
 import com.weworkshop.app.R
 import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_AreFilesInSubscriptionList_Request
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_Subscribe_Request
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_Unsubscribe_Request
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetUserFiles_Request
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_QueryFiles_Request
@@ -185,6 +188,36 @@ object Workshop {
         items.forEach { cache.putIfAbsent(it.id, it) }
         val more = details.size >= perPage && page * perPage < body.total
         return WorkshopPage(items = items, nextCursor = if (more) (page + 1).toString() else null, total = body.total)
+    }
+
+    /** Bumped after every subscribe/unsubscribe so the subscriptions page knows to reload. */
+    val subscriptionsVersion = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    /** Whether the signed-in account is subscribed to [id]. */
+    suspend fun isSubscribed(id: Long): Boolean {
+        SteamSession.awaitLoggedIn()
+        val req = CPublishedFile_AreFilesInSubscriptionList_Request.newBuilder()
+            .setAppid(SteamSession.WE_APP_ID)
+            .addPublishedfileids(id)
+            .build()
+        val resp = rpc { service.areFilesInSubscriptionList(req).await() }
+        if (resp.result != EResult.OK) throw IOException(App.str(R.string.err_query, resp.result.toString()))
+        return resp.body.filesList.any { it.publishedfileid == id && it.inlist }
+    }
+
+    suspend fun setSubscribed(id: Long, subscribe: Boolean) {
+        SteamSession.awaitLoggedIn()
+        val result = if (subscribe) {
+            val req = CPublishedFile_Subscribe_Request.newBuilder()
+                .setPublishedfileid(id).setAppid(SteamSession.WE_APP_ID).setNotifyClient(false).build()
+            rpc { service.subscribe(req).await() }.result
+        } else {
+            val req = CPublishedFile_Unsubscribe_Request.newBuilder()
+                .setPublishedfileid(id).setAppid(SteamSession.WE_APP_ID).setNotifyClient(false).build()
+            rpc { service.unsubscribe(req).await() }.result
+        }
+        if (result != EResult.OK) throw IOException(App.str(R.string.err_query, result.toString()))
+        subscriptionsVersion.value++
     }
 
     suspend fun details(id: Long): WorkshopItem {

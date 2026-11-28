@@ -8,7 +8,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::sync::Mutex;
 
-use apolline_scene::render::Fit;
+use apolline_scene::render::{Fit, View};
 use apolline_scene::{Project, Renderer};
 use jni::objects::{JClass, JFloatArray, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
@@ -277,6 +277,69 @@ pub extern "system" fn Java_com_weworkshop_app_scene_NativeScene_nativeCheck(
         lines.join("\n")
     }))
     .unwrap_or_else(|_| "ERROR: native panic".into());
+    env.new_string(out)
+        .map(|s| s.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}
+
+/// Frames the scene for a phone and hides the objects named in `hidden` (one name per line).
+#[no_mangle]
+pub extern "system" fn Java_com_weworkshop_app_scene_NativeScene_nativeSetView(
+    mut env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+    dx: jfloat,
+    zoom: jfloat,
+    clamp: jboolean,
+    hidden: JString,
+) {
+    if handle == 0 {
+        return;
+    }
+    let h = unsafe { &mut *(handle as *mut Handle) };
+    let names: Vec<String> = jstr(&mut env, &hidden)
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(str::to_owned)
+        .collect();
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        h.renderer.hide_named(&names);
+        h.renderer.set_view(View {
+            dx: dx.clamp(-1.0, 1.0),
+            zoom: zoom.clamp(0.5, 2.0),
+            clamp: clamp != 0,
+        });
+    }));
+}
+
+/// The names of the scene's objects, one per line, for the host to offer hiding.
+#[no_mangle]
+pub extern "system" fn Java_com_weworkshop_app_scene_NativeScene_nativeLayerNames(
+    mut env: JNIEnv,
+    _: JClass,
+    project: JString,
+    assets: JString,
+) -> jstring {
+    let project = jstr(&mut env, &project).unwrap_or_default();
+    let assets = jstr(&mut env, &assets);
+    let out = catch_unwind(AssertUnwindSafe(|| -> String {
+        let Ok(p) = Project::open(Path::new(&project), assets.as_deref().map(Path::new)) else {
+            return String::new();
+        };
+        let Ok(scene) = p.scene() else {
+            return String::new();
+        };
+        let mut seen = std::collections::BTreeSet::new();
+        scene
+            .object_names()
+            .iter()
+            .cloned()
+            .filter(|n| !n.trim().is_empty() && seen.insert(n.clone()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }))
+    .unwrap_or_default();
     env.new_string(out)
         .map(|s| s.into_raw())
         .unwrap_or(std::ptr::null_mut())

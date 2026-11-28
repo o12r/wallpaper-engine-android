@@ -271,6 +271,11 @@ const DEFAULT_SIZE: (f32, f32) = (1920.0, 1080.0);
 pub(crate) const ZOOMS: std::ops::RangeInclusive<f32> = 0.1..=10.0;
 
 impl Scene {
+    /// WE-ANDROID: every object's name, drawn or not.
+    pub fn object_names(&self) -> &[String] {
+        &self.names
+    }
+
     pub fn parse(json: &str) -> Result<Self, Error> {
         let root: Value = serde_json::from_str(json)
             .map_err(|err| Error::Format(format!("scene.json: {err}")))?;

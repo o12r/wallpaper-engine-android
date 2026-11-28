@@ -304,4 +304,24 @@ Each wallpaper must be in its own folder named by its Workshop ID, like the PC�
     <string name="web_capture_working">Rendering the page…</string>
     <string name="web_capture_failed">Could not capture this page (script-heavy or WebGL pages may fail)</string>
     <string name="info_about">About</string>
+    <string name="subscribe">Subscribe</string>
+    <string name="subscribed">Subscribed</string>
+    <string name="subscribe_failed">Subscription failed: %1$s</string>
+    <string name="unsubscribe_title">Unsubscribe?</string>
+    <string name="unsubscribe_msg">“%1$s” will be removed from this Steam account’s subscriptions. Downloaded files on the phone are kept.</string>
+    <string name="unsubscribe">Unsubscribe</string>
+    <string name="subscribe_download_title">Subscribed</string>
+    <string name="subscribe_download_msg">Download “%1$s” to the phone now?</string>
+    <string name="download_now">Download</string>
+    <string name="not_now">Not now</string>
+    <string name="frame_title">Framing on this phone</string>
+    <string name="frame_clamp">Keep edge layers on screen</string>
+    <string name="frame_clamp_info">Desktop scenes are wider than a phone. Small layers cut off by the edge are moved inside.</string>
+    <string name="frame_shift">Shift sideways: %1$d%%</string>
+    <string name="frame_zoom">Zoom: %1$d%%</string>
+    <string name="frame_own">Own settings for this wallpaper</string>
+    <string name="frame_own_info">Off: the global settings from Settings apply.</string>
+    <string name="frame_layers">Hide layers (ticked = not drawn)</string>
+    <string name="frame_reset">Reset</string>
+    <string name="frame_enter_value">Value (%1$d to %2$d)</string>
 </resources>

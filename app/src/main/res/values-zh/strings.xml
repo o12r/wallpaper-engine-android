@@ -291,4 +291,24 @@
     <string name="web_capture_working">正在渲染网页…</string>
     <string name="web_capture_failed">无法捕获该网页画面（依赖脚本或 WebGL 的页面可能会失败）</string>
     <string name="info_about">说明</string>
+    <string name="subscribe">订阅</string>
+    <string name="subscribed">已订阅</string>
+    <string name="subscribe_failed">订阅失败：%1$s</string>
+    <string name="unsubscribe_title">取消订阅？</string>
+    <string name="unsubscribe_msg">将从当前 Steam 账号的订阅中移除“%1$s”。手机上已下载的文件会保留。</string>
+    <string name="unsubscribe">取消订阅</string>
+    <string name="subscribe_download_title">已订阅</string>
+    <string name="subscribe_download_msg">现在把“%1$s”下载到手机吗？</string>
+    <string name="download_now">下载</string>
+    <string name="not_now">暂不</string>
+    <string name="frame_title">手机上的取景</string>
+    <string name="frame_clamp">把边缘图层挪进屏幕</string>
+    <string name="frame_clamp_info">桌面壁纸比手机宽，被屏幕边缘截断的小图层会被挪到屏幕内。</string>
+    <string name="frame_shift">左右偏移：%1$d%%</string>
+    <string name="frame_zoom">缩放：%1$d%%</string>
+    <string name="frame_own">此壁纸使用单独设置</string>
+    <string name="frame_own_info">关闭时使用“设置”里的全局选项。</string>
+    <string name="frame_layers">隐藏图层（勾选的不显示）</string>
+    <string name="frame_reset">恢复默认</string>
+    <string name="frame_enter_value">输入数值（%1$d 到 %2$d）</string>
 </resources>

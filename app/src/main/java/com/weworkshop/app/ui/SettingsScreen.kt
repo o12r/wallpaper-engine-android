@@ -156,6 +156,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
 
+            Section(stringResource(R.string.frame_title)) {
+                SceneFrameControls(ctx, null)
+            }
+
             Section(stringResource(R.string.settings_music)) {
                 val on by AppSettings.musicReactive.collectAsStateWithLifecycle()
                 var tick by remember { mutableStateOf(0) }

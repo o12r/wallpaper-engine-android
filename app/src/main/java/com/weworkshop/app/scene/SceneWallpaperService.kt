@@ -16,7 +16,9 @@ import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
+import com.weworkshop.app.AppSettings
 import com.weworkshop.app.wallpaper.ColorReport
+import com.weworkshop.app.wallpaper.MusicBridge
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -49,6 +51,7 @@ class SceneWallpaperService : WallpaperService() {
         private var touchX = 0f
         private var touchY = 0f
         private var swipeX = 0f
+        private var holdingMusic = false
         private var tiltX = 0f
         private var tiltY = 0f
         private var baseRoll = Float.NaN
@@ -66,6 +69,8 @@ class SceneWallpaperService : WallpaperService() {
 
         private val tick = Runnable { view?.requestRender() }
 
+        @Volatile private var viewDirty = false
+
         private val renderer = object : GLSurfaceView.Renderer {
             private var scene: NativeScene? = null
             private var videos: VideoTextures? = null
@@ -75,6 +80,7 @@ class SceneWallpaperService : WallpaperService() {
             private var start = 0L
             private var loadedFrom: String? = null
             private var frames = 0
+            private var names: List<String> = emptyList()
 
             /** Phones often drop app logs, so the last renderer state is also kept in a file for diagnosis. */
             private fun status(msg: String) {
@@ -107,6 +113,8 @@ class SceneWallpaperService : WallpaperService() {
                             NativeScene.create(path, SceneWallpaper.assetsDir(ctx).takeIf { it.isDirectory }?.absolutePath)
                                 .also {
                                     status("loaded $path")
+                                    names = NativeScene.layerNames(path, SceneWallpaper.assetsDir(ctx).takeIf { it.isDirectory }?.absolutePath)
+                                    viewDirty = true
                                     videos = VideoTextures.attach(ctx, it, ::status)
                                     if (!visible) videos?.pause()
                                 }
@@ -118,6 +126,11 @@ class SceneWallpaperService : WallpaperService() {
                     }
                 }
                 val s = scene
+                if (s != null && viewDirty) {
+                    viewDirty = false
+                    val fr = SceneWallpaper.framing(ctx, loadedFrom ?: "")
+                    s.setView(fr.dx / 100f, fr.zoom / 100f, fr.clamp, fr.hidden.filter { it in names })
+                }
                 if (s == null) {
                     android.opengl.GLES30.glClearColor(0f, 0f, 0f, 1f)
                     android.opengl.GLES30.glClear(android.opengl.GLES30.GL_COLOR_BUFFER_BIT)
@@ -127,6 +140,11 @@ class SceneWallpaperService : WallpaperService() {
                 val dt = if (last == 0L) 0.016f else (now - last) / 1000f
                 last = now
                 videos?.update()
+                // Audio-reactive layers: feed the system output spectrum (silence when music is off).
+                if (AppSettings.musicReactive.value) {
+                    if (frames % 60 == 0) MusicBridge.ensure(ctx)
+                    s.setSpectrum(MusicBridge.spectrum)
+                } else s.setSpectrum(SILENCE)
                 val animated = s.draw(w, h, (now - start) / 1000f, dt, px, py)
                 if (needColors) {
                     needColors = false
@@ -212,11 +230,13 @@ class SceneWallpaperService : WallpaperService() {
         override fun onVisibilityChanged(v: Boolean) {
             visible = v
             if (v) {
+                if (!holdingMusic) { holdingMusic = true; MusicBridge.acquire(this@SceneWallpaperService) }
                 view?.onResume()
                 view?.queueEvent { renderer.setPlaying(true) }
                 view?.requestRender()
                 startTilt()
             } else {
+                if (holdingMusic) { holdingMusic = false; MusicBridge.release() }
                 stopTilt()
                 main.removeCallbacks(tick)
                 view?.queueEvent { renderer.setPlaying(false) }
@@ -288,6 +308,7 @@ class SceneWallpaperService : WallpaperService() {
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
         override fun onSharedPreferenceChanged(p: SharedPreferences, key: String?) {
+            if (key != null && (key.startsWith("g.") || key.startsWith("p."))) viewDirty = true
             when (key) {
                 SceneWallpaper.KEY_FPS -> fpsLimit = SceneWallpaper.fps(this@SceneWallpaperService)
                 SceneWallpaper.KEY_TILT_STRENGTH -> strength = SceneWallpaper.tiltStrength(this@SceneWallpaperService) / 100f
@@ -304,6 +325,7 @@ class SceneWallpaperService : WallpaperService() {
         override fun onDestroy() {
             super.onDestroy()
             prefs.unregisterOnSharedPreferenceChangeListener(this)
+            if (holdingMusic) { holdingMusic = false; MusicBridge.release() }
             stopTilt()
             main.removeCallbacks(tick)
             // The GL thread owns the context: let it tear the scene down before the thread exits.
@@ -315,5 +337,6 @@ class SceneWallpaperService : WallpaperService() {
 
     private companion object {
         const val TAG = "SceneWallpaper"
+        val SILENCE = FloatArray(128)
     }
 }
