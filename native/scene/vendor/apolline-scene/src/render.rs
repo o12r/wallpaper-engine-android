@@ -237,7 +237,16 @@ struct Program {
     resolution: [Option<glow::UniformLocation>; 8],
 }
 
+/// WE-ANDROID: a video texture the host decodes into `texture` (RGBA, `width`x`height`).
+pub struct Video {
+    pub texture: glow::Texture,
+    pub width: u32,
+    pub height: u32,
+    pub data: std::sync::Arc<Vec<u8>>,
+}
+
 pub struct Renderer {
+    pub(crate) videos: Vec<Video>,
     programs: Vec<Program>,
     layers: Vec<Drawn>,
     textures: Vec<glow::Texture>,
@@ -276,6 +285,11 @@ pub struct Needs {
 }
 
 impl Renderer {
+    /// WE-ANDROID: the video textures the host has to feed.
+    pub fn videos(&self) -> &[Video] {
+        &self.videos
+    }
+
     /// Uploads textures and builds the material programs. Hidden layers are kept, for scripts
     /// to show, but not drawn.
     ///
@@ -298,6 +312,7 @@ impl Renderer {
             }
         };
         let mut renderer = Renderer {
+            videos: Vec::new(),
             programs: vec![program],
             layers: Vec::new(),
             textures: Vec::new(),

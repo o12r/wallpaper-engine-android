@@ -304,8 +304,34 @@ impl Template {
         {
             return Err(fail(format!("unknown material constant {unused}")));
         }
+        // WE-ANDROID: Wallpaper Engine lets a fragment shader write its varyings; GLSL ES makes
+        // them read-only inputs. A written one is renamed to a local, filled from the input
+        // before the shader's main runs.
+        let mut body = bound.body.clone();
+        let mut main = FRAGMENT_MAIN.to_owned();
+        for (name, kind) in bound.varyings.iter().filter(|(_, kind)| !kind.contains('[')) {
+            if !writes(&body, name)? {
+                continue;
+            }
+            let local = format!("apolline_local_{name}");
+            let declared = format!("varying {kind} {name}");
+            if !body.contains(&declared) {
+                continue;
+            }
+            body = rename(&body, name, &local)?;
+            body = body.replacen(
+                &format!("varying {kind} {local}"),
+                &format!("varying {kind} {name}; {kind} {local}"),
+                1,
+            );
+            main = main.replacen(
+                "apolline_effect_main();",
+                &format!("{local} = {name}; apolline_effect_main();"),
+                1,
+            );
+        }
         Ok(Fragment {
-            source: source(FRAGMENT, &expansion.combos, &bound.body, FRAGMENT_MAIN)?,
+            source: source(FRAGMENT, &expansion.combos, &body, &main)?,
             vertex,
             reads: bound.reads,
             texcoord: bound.texcoord,
@@ -338,6 +364,27 @@ fn width(kind: &str) -> Option<usize> {
         "vec4" => Some(4),
         _ => None,
     }
+}
+
+/// Whether `source` assigns to `name`, or to a swizzle of it.
+fn writes(source: &str, name: &str) -> Result<bool, Error> {
+    let tokens = parameters::tokens(source)?;
+    Ok(tokens.iter().enumerate().any(|(at, token)| {
+        if token.text != name {
+            return false;
+        }
+        let mut rest = source[token.end..].trim_start();
+        if let Some(swizzle) = rest.strip_prefix('.') {
+            rest = swizzle.trim_start_matches(|c: char| c.is_ascii_alphanumeric()).trim_start();
+        }
+        let _ = at;
+        let mut chars = rest.chars();
+        match (chars.next(), chars.next()) {
+            (Some('='), next) => next != Some('='),
+            (Some('+' | '-' | '*' | '/'), Some('=')) => true,
+            _ => false,
+        }
+    }))
 }
 
 fn rename(source: &str, from: &str, to: &str) -> Result<String, Error> {

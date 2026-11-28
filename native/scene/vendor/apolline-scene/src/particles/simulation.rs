@@ -613,7 +613,7 @@ impl Simulation {
             seed: if system.operators.iter().any(|operator| {
                 matches!(
                     operator,
-                    Operator::Oscillate { .. } | Operator::Turbulence { .. }
+                    Operator::Oscillate { .. } | Operator::Turbulence { .. } | Operator::Vortex { .. }
                 )
             }) {
                 self.random = self.random.wrapping_add(0x9E37_79B9_7F4A_7C15);
@@ -755,6 +755,30 @@ fn live(particle: &mut Particle, operators: &[Operator], world: World) {
                 let strength = pick(1, speed) * fade(t, blend) * STEP;
                 for ((velocity, push), mask) in particle.velocity.iter_mut().zip(push).zip(mask) {
                     *velocity += push * mask * strength;
+                }
+            }
+            Operator::Vortex {
+                control,
+                axis,
+                distance,
+                speed,
+                blend,
+            } => {
+                let from: [f32; 3] =
+                    [0, 1, 2].map(|i| particle.position[i] - world.controls[control][i]);
+                let [ax, ay, az] = axis;
+                let [x, y, z] = from;
+                // axis x offset: the way round the axis.
+                let round = [ay * z - az * y, az * x - ax * z, ax * y - ay * x];
+                let length = round.iter().map(|v| v * v).sum::<f32>().sqrt();
+                let radius = from.iter().map(|v| v * v).sum::<f32>().sqrt();
+                if length > 1e-4 && radius <= distance[1] {
+                    let span = (distance[1] - distance[0]).max(1e-3);
+                    let mix = ((radius - distance[0]) / span).clamp(0.0, 1.0);
+                    let push = (speed[0] + (speed[1] - speed[0]) * mix) * fade(t, blend) * STEP / length;
+                    for (velocity, round) in particle.velocity.iter_mut().zip(round) {
+                        *velocity += round * push;
+                    }
                 }
             }
             Operator::Attract {

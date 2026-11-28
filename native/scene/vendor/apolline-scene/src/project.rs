@@ -502,9 +502,17 @@ impl Project {
             .map_err(|reason| Error::Format(reason.clone()))?
             .clone();
         // WE-ANDROID: a layer whose effects can't be built is drawn without them.
-        let (effects, undrawn) = self
-            .effects(image, textures, remaining, still)
-            .unwrap_or_default();
+        // A plain colour has no picture of its own: its effects (audio bars, say) make the whole
+        // of it, so without them it is only a solid block. Leave such a layer out.
+        let built = self.effects(image, textures, remaining, still);
+        if resolved.solid
+            && let Err(reason) = &built
+        {
+            return Err(Error::Format(format!(
+                "a plain colour layer whose effects can't be built is left out: {reason}"
+            )));
+        }
+        let (effects, undrawn) = built.unwrap_or_default();
         let image = image.clone();
         // A plain colour or a composition layer is as big as the layer says, which effects
         // drawn over it need.

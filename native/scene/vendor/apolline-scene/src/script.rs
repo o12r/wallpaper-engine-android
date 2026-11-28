@@ -556,8 +556,12 @@ fn first_value(
 /// How far through the local day it is now, 0 to 1.
 fn local_daytime() -> f32 {
     let mut now: libc::tm = unsafe { std::mem::zeroed() };
-    let time = unsafe { libc::time(std::ptr::null_mut()) };
-    if unsafe { libc::localtime_r(&time, &mut now) }.is_null() {
+    let _time = unsafe { libc::time(std::ptr::null_mut()) };
+    #[cfg(not(unix))]
+    let failed = true; // WE-ANDROID: host builds on Windows have no localtime_r
+    #[cfg(unix)]
+    let failed = unsafe { libc::localtime_r(&_time, &mut now) }.is_null();
+    if failed {
         return 0.5;
     }
     (now.tm_hour * 3600 + now.tm_min * 60 + now.tm_sec) as f32 / 86400.0

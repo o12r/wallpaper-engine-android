@@ -68,6 +68,7 @@ class SceneWallpaperService : WallpaperService() {
 
         private val renderer = object : GLSurfaceView.Renderer {
             private var scene: NativeScene? = null
+            private var videos: VideoTextures? = null
             private var w = 1
             private var h = 1
             private var last = 0L
@@ -82,7 +83,7 @@ class SceneWallpaperService : WallpaperService() {
 
             override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
                 // The EGL context is new (first start or after the context was lost): rebuild everything.
-                scene?.destroy(); scene = null
+                dropScene()
                 loadedFrom = null
                 start = SystemClock.elapsedRealtime()
                 last = 0L
@@ -97,14 +98,18 @@ class SceneWallpaperService : WallpaperService() {
                 val ctx = this@SceneWallpaperService
                 val path = prefs.getString(SceneWallpaper.KEY_PROJECT, null)
                 if (path != loadedFrom) {
-                    scene?.destroy(); scene = null
+                    dropScene()
                     loadedFrom = path
                     colors = null
                     needColors = true
                     if (path != null) {
                         scene = try {
                             NativeScene.create(path, SceneWallpaper.assetsDir(ctx).takeIf { it.isDirectory }?.absolutePath)
-                                .also { status("loaded $path") }
+                                .also {
+                                    status("loaded $path")
+                                    videos = VideoTextures.attach(ctx, it, ::status)
+                                    if (!visible) videos?.pause()
+                                }
                         } catch (t: Throwable) {
                             Log.e(TAG, "scene load failed: ${t.message}", t)
                             status("load failed: $path -> ${t.message}")
@@ -121,6 +126,7 @@ class SceneWallpaperService : WallpaperService() {
                 val now = SystemClock.elapsedRealtime()
                 val dt = if (last == 0L) 0.016f else (now - last) / 1000f
                 last = now
+                videos?.update()
                 val animated = s.draw(w, h, (now - start) / 1000f, dt, px, py)
                 if (needColors) {
                     needColors = false
@@ -170,8 +176,17 @@ class SceneWallpaperService : WallpaperService() {
                 main.post { runCatching { notifyColorsChanged() } }
             }
 
-            fun release() {
+            private fun dropScene() {
+                videos?.release(); videos = null
                 scene?.destroy(); scene = null
+            }
+
+            fun setPlaying(on: Boolean) {
+                if (on) videos?.resume() else videos?.pause()
+            }
+
+            fun release() {
+                dropScene()
             }
         }
 
@@ -198,11 +213,13 @@ class SceneWallpaperService : WallpaperService() {
             visible = v
             if (v) {
                 view?.onResume()
+                view?.queueEvent { renderer.setPlaying(true) }
                 view?.requestRender()
                 startTilt()
             } else {
                 stopTilt()
                 main.removeCallbacks(tick)
+                view?.queueEvent { renderer.setPlaying(false) }
                 view?.onPause()
             }
         }

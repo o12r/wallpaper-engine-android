@@ -15,8 +15,8 @@ android {
         applicationId = "com.weworkshop.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 45
-        versionName = "1.7.10"
+        versionCode = 47
+        versionName = "1.7.12"
         // libwe_scene.so (Rust) is built by scripts/build-native.sh into src/main/jniLibs.
         ndk { abiFilters += setOf("arm64-v8a", "x86_64") }
     }

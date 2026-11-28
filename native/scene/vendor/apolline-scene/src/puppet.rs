@@ -143,6 +143,9 @@ impl Puppet {
                 animations: Vec::new(),
             });
         }
+        // Version 21 meshes carry a block this doesn't decode between the triangles and the
+        // skeleton; the skeleton is found by its tag and that block is passed over.
+        read.seek(b"MDLS")?;
         let bones = skeleton(&mut read)?;
         if corners.iter().any(|corner| {
             corner
@@ -204,7 +207,26 @@ fn skeleton(read: &mut Reader) -> Result<Vec<Bone>, Error> {
         return Err(refuse("a puppet skeleton of the wrong size"));
     }
     read.at = end;
+    // Newer skeletons put their attachments (`MDAT`) where the bones end, before the animations.
+    if read.bytes[read.at..].starts_with(b"MDAT") {
+        attachments(read)?;
+    }
     Ok(bones)
+}
+
+/// Attachments hang off bones with a name and a matrix. None are drawn, so they are read past.
+fn attachments(read: &mut Reader) -> Result<(), Error> {
+    if read.version(b"MDAT")? != 1 {
+        return Err(refuse("a puppet attachment version"));
+    }
+    read.skip(4)?;
+    let count = read.u16()?;
+    for _ in 0..count {
+        read.skip(2)?;
+        read.text()?;
+        read.floats::<16>()?;
+    }
+    Ok(())
 }
 
 /// The first animation only: what follows each one's frames differs between versions and
@@ -326,6 +348,16 @@ impl Reader<'_> {
         let text = String::from_utf8_lossy(&rest[..end]).into_owned();
         self.at += end + 1;
         Ok(text)
+    }
+
+    /// Moves on to the next `tag`, past any data in between.
+    fn seek(&mut self, tag: &[u8]) -> Result<(), Error> {
+        let found = self.bytes[self.at..]
+            .windows(tag.len())
+            .position(|window| window == tag)
+            .ok_or_else(|| refuse("a puppet without a skeleton"))?;
+        self.at += found;
+        Ok(())
     }
 
     /// A section's tag and four digit version, ended by a zero.

@@ -169,6 +169,64 @@ pub extern "system" fn Java_com_weworkshop_app_scene_NativeScene_nativeNeeds(
     (n.pointer as jint) | ((n.daytime as jint) << 1) | ((n.audio as jint) << 2)
 }
 
+/// Number of video textures the host has to decode into GL textures.
+#[no_mangle]
+pub extern "system" fn Java_com_weworkshop_app_scene_NativeScene_nativeVideoCount(
+    _: JNIEnv,
+    _: JClass,
+    handle: jlong,
+) -> jint {
+    if handle == 0 {
+        return 0;
+    }
+    unsafe { &*(handle as *const Handle) }.renderer.videos().len() as jint
+}
+
+/// `[gl texture name, width, height]` of video `index`, or an empty array.
+#[no_mangle]
+pub extern "system" fn Java_com_weworkshop_app_scene_NativeScene_nativeVideoInfo<'l>(
+    env: JNIEnv<'l>,
+    _: JClass,
+    handle: jlong,
+    index: jint,
+) -> jni::sys::jintArray {
+    let info = (handle != 0)
+        .then(|| unsafe { &*(handle as *const Handle) }.renderer.videos().get(index as usize))
+        .flatten()
+        .map(|v| [v.texture.0.get() as jint, v.width as jint, v.height as jint]);
+    let Some(info) = info else {
+        return env.new_int_array(0).map(|a| a.into_raw()).unwrap_or(std::ptr::null_mut());
+    };
+    match env.new_int_array(3) {
+        Ok(arr) => {
+            let _ = env.set_int_array_region(&arr, 0, &info);
+            arr.into_raw()
+        }
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// The MP4 bytes of video `index`.
+#[no_mangle]
+pub extern "system" fn Java_com_weworkshop_app_scene_NativeScene_nativeVideoData(
+    env: JNIEnv,
+    _: JClass,
+    handle: jlong,
+    index: jint,
+) -> jni::sys::jbyteArray {
+    if handle == 0 {
+        return std::ptr::null_mut();
+    }
+    let h = unsafe { &*(handle as *const Handle) };
+    match h.renderer.videos().get(index as usize) {
+        Some(v) => env
+            .byte_array_from_slice(&v.data)
+            .map(|a| a.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        None => std::ptr::null_mut(),
+    }
+}
+
 #[no_mangle]
 pub extern "system" fn Java_com_weworkshop_app_scene_NativeScene_nativeDestroy(
     _: JNIEnv,

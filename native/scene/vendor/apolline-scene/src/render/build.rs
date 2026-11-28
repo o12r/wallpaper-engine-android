@@ -453,6 +453,14 @@ impl<'a> Builder<'a> {
                 reserve(&mut self.allocated, bytes)?;
                 let uploaded = unsafe { upload(self.gl, texture)? };
                 renderer.textures.push(uploaded.0);
+                if let (Some(data), Some(first)) = (&texture.video, texture.images.first().and_then(|i| i.first())) {
+                    renderer.videos.push(super::Video {
+                        texture: uploaded.0,
+                        width: first.width,
+                        height: first.height,
+                        data: data.clone(),
+                    });
+                }
                 self.textures.insert(key, uploaded);
                 uploaded
             }

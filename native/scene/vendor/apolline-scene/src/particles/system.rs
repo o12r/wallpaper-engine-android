@@ -252,6 +252,15 @@ pub enum Operator {
         mask: [f32; 3],
         blend: [f32; 4],
     },
+    /// WE-ANDROID: swirl around `axis` through a control point; the push is `speed[0]` at
+    /// `distance[0]` from it, easing to `speed[1]` at `distance[1]`, and nothing beyond.
+    Vortex {
+        control: usize,
+        axis: [f32; 3],
+        distance: [f32; 2],
+        speed: [f32; 2],
+        blend: [f32; 4],
+    },
     /// Particles within `threshold` of a control point, moved by `origin`, sped towards it
     /// by `scale` each second, or away when that's below zero.
     Attract {
@@ -329,6 +338,20 @@ const ATTRACT: &[&str] = &[
     "origin",
     "scale",
     "threshold",
+];
+const VORTEX: &[&str] = &[
+    "axis",
+    "blendinend",
+    "blendinstart",
+    "blendoutend",
+    "blendoutstart",
+    "controlpoint",
+    "distanceinner",
+    "distanceouter",
+    "flags",
+    "offset",
+    "speedinner",
+    "speedouter",
 ];
 const TURBULENCE: &[&str] = &[
     "blendinend",
@@ -672,6 +695,23 @@ fn operator(value: &Value, controls: &[Control; CONTROLS]) -> Result<Operator, E
                 origin: vector(value.get("origin"), [0.0; 3]),
                 scale: field("scale", 0.0),
                 threshold: field("threshold", 128.0).max(0.0),
+                blend: [
+                    field("blendinstart", 0.0),
+                    field("blendinend", 0.0),
+                    field("blendoutstart", 1.0),
+                    field("blendoutend", 1.0),
+                ],
+            }
+        }
+        Some("vortex_v2") => {
+            // WE-ANDROID: audio keys are accepted but the swirl stays at its static speed.
+            let keys: Vec<&str> = VORTEX.iter().chain(super::audio::KEYS).copied().collect();
+            known(value, &keys, "operator")?;
+            Operator::Vortex {
+                control: control::named(value, controls, refuse)?,
+                axis: vector(value.get("axis"), [0.0, 0.0, 1.0]),
+                distance: [field("distanceinner", 0.0), field("distanceouter", 500.0).max(1.0)],
+                speed: [field("speedinner", 500.0), field("speedouter", 0.0)],
                 blend: [
                     field("blendinstart", 0.0),
                     field("blendinend", 0.0),

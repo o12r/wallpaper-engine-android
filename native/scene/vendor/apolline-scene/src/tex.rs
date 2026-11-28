@@ -85,6 +85,9 @@ pub struct Texture {
     pub images: Vec<Vec<Mip>>,
     /// An animation's frames, in order; none for a still picture.
     pub frames: Vec<Frame>,
+    /// WE-ANDROID: the MP4 a video texture holds; the pixels are a black placeholder until the host
+    /// decodes it into the GL texture.
+    pub video: Option<std::sync::Arc<Vec<u8>>>,
 }
 
 impl Texture {
@@ -104,6 +107,7 @@ impl Texture {
                 pixels: vec![255; 4],
             }]],
             frames: Vec::new(),
+            video: None,
         }
     }
 
@@ -156,9 +160,9 @@ impl Texture {
         // From the third version on, a FreeImage format says when mipmaps are whole image
         // files; the fourth adds whether the texture is a video.
         let file = if version >= 3 { reader.i32()? } else { -1 };
-        if version >= 4 && reader.u32()? != 0 {
-            return Err(Error::Format("video textures aren't read yet".into()));
-        }
+        // WE-ANDROID: a video texture keeps its MP4 for the host to decode.
+        let _video_flag = version >= 4 && reader.u32()? != 0;
+        let mut video: Option<Vec<u8>> = None;
         let mut images = Vec::with_capacity(count);
         let mut remaining = budget.min(MAX_TEXTURE_BYTES);
         for _ in 0..count {
@@ -170,7 +174,7 @@ impl Texture {
             }
             let mut levels = Vec::with_capacity(mips);
             for _ in 0..mips {
-                let mip = mip(&mut reader, version, format, file, remaining)?;
+                let mip = mip(&mut reader, version, format, file, remaining, &mut video)?;
                 remaining -= mip.pixels.len();
                 levels.push(mip);
             }
@@ -196,6 +200,7 @@ impl Texture {
             image_height,
             images,
             frames,
+            video: video.map(std::sync::Arc::new),
         })
     }
 
@@ -256,6 +261,7 @@ fn mip(
     format: Format,
     file: i32,
     remaining: usize,
+    video: &mut Option<Vec<u8>>,
 ) -> Result<Mip, Error> {
     let (width, height) = (reader.u32()?, reader.u32()?);
     let channels = match (file, format) {
@@ -296,7 +302,17 @@ fn mip(
     let stored = reader.bytes(len)?;
     // WE-ANDROID: an MP4 stored as a texture is a video; its bytes are not pixels.
     if stored.len() > 12 && &stored[4..8] == b"ftyp" {
-        return Err(Error::Format("video textures aren't read yet".into()));
+        *video = Some(stored.to_vec());
+        let mut pixels = vec![0u8; need];
+        if channels.count() == 4 {
+            pixels.chunks_exact_mut(4).for_each(|p| p[3] = 255);
+        }
+        return Ok(Mip {
+            width,
+            height,
+            channels,
+            pixels,
+        });
     }
     let bytes = if lz4 {
         Cow::Owned(

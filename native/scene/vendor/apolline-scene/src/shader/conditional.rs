@@ -108,7 +108,9 @@ pub(super) fn select(source: &str, combos: &BTreeMap<String, i32>) -> Result<Str
             }
             "endif" => {
                 empty(rest)?;
-                branches.pop().ok_or_else(|| fail("#endif without #if"))?;
+                // WE-ANDROID: Wallpaper Engine ignores an #endif with no #if (the stock-looking
+                // Simple_Audio_Bars.vert has one), so a stray one is skipped instead of refused.
+                branches.pop();
             }
             "define" if active => {
                 let end = rest

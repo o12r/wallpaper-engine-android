@@ -21,6 +21,18 @@ class NativeScene private constructor(private var handle: Long) {
     val needs: Int get() = if (handle == 0L) 0 else nativeNeeds(handle)
     val wantsAudio: Boolean get() = needs and 4 != 0
 
+    /** Video textures the scene needs fed: GL texture name, size and the MP4 bytes. */
+    class Video(val texture: Int, val width: Int, val height: Int, val data: ByteArray)
+
+    fun videos(): List<Video> {
+        if (handle == 0L) return emptyList()
+        return (0 until nativeVideoCount(handle)).mapNotNull { i ->
+            val info = nativeVideoInfo(handle, i)
+            val data = nativeVideoData(handle, i)
+            if (info.size < 3 || data == null) null else Video(info[0], info[1], info[2], data)
+        }
+    }
+
     fun destroy() {
         val h = handle
         handle = 0
@@ -59,6 +71,9 @@ class NativeScene private constructor(private var handle: Long) {
         @JvmStatic private external fun nativeDraw(h: Long, w: Int, hgt: Int, time: Float, delta: Float, px: Float, py: Float): Boolean
         @JvmStatic private external fun nativeSetSpectrum(h: Long, bins: FloatArray)
         @JvmStatic private external fun nativeNeeds(h: Long): Int
+        @JvmStatic private external fun nativeVideoCount(h: Long): Int
+        @JvmStatic private external fun nativeVideoInfo(h: Long, i: Int): IntArray
+        @JvmStatic private external fun nativeVideoData(h: Long, i: Int): ByteArray?
         @JvmStatic private external fun nativeDestroy(h: Long)
         @JvmStatic private external fun nativeLastError(): String
         @JvmStatic private external fun nativeCheck(project: String, assets: String?): String
